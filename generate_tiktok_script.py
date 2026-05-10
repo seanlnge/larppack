@@ -1,6 +1,7 @@
 import argparse
 import json
 import os
+import random
 import re
 from pathlib import Path
 from typing import Any
@@ -9,6 +10,16 @@ from openai import OpenAI
 
 
 DEFAULT_MODEL = "gpt-5.4"
+HOOK_ARCHETYPES = [
+    "myth-buster",
+    "hard-truth",
+    "contrarian-take",
+    "before-after-shift",
+    "mistake-to-avoid",
+    "identity-statement",
+    "quick-win-playbook",
+    "story-led",
+]
 
 
 def parse_args() -> argparse.Namespace:
@@ -57,8 +68,21 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--temperature",
         type=float,
-        default=0.8,
+        default=1.15,
         help="Model temperature.",
+    )
+    parser.add_argument(
+        "--top-p",
+        type=float,
+        default=0.95,
+        help="Nucleus sampling parameter for generation diversity.",
+    )
+    parser.add_argument(
+        "--hook-style",
+        type=str,
+        default="auto",
+        choices=["auto"] + HOOK_ARCHETYPES,
+        help="Force a specific hook archetype for the title slide, or auto-rotate.",
     )
     parser.add_argument(
         "--dry-run",
@@ -88,7 +112,13 @@ def build_prompt(
     schema_text: str,
     template_text: str,
     target_slide_count: int,
+    hook_style: str,
+    avoid_title_patterns: list[str],
+    recent_titles: list[str],
 ) -> str:
+    anti_repeat_block = "\n".join(f"- {pattern}" for pattern in avoid_title_patterns) if avoid_title_patterns else "- none"
+    recent_titles_block = "\n".join(f"- {title}" for title in recent_titles) if recent_titles else "- none"
+
     return f"""
 You are writing a high-performing TikTok slideshow script in JSON.
 
@@ -99,6 +129,7 @@ Goals:
 - Keep language punchy, specific, and emotionally vivid.
 - Keep each slide concise and skimmable.
 - Keep the overall narrative cohesive: hook -> value/tips -> bridge -> final CTA.
+- Prioritize novelty and avoid repeating stale listicle framing.
 
 Requirements:
 - Return valid JSON only (no markdown fences, no commentary).
@@ -113,6 +144,16 @@ Requirements:
 - imageDescriptor should preserve visual coherence across all slides.
 - Use textColor '#FFFFFF' and textBackgroundColor '#000000' unless product strongly demands a different contrast.
 - cta_final should naturally mention the product website.
+
+Title/Hooks diversity constraints:
+- Use hook archetype: {hook_style}
+- Do NOT default to "X ways to ..." unless that exact framing is explicitly required by the product brief.
+- Avoid these repetitive patterns:
+{anti_repeat_block}
+- Avoid reusing or closely paraphrasing recent generated titles:
+{recent_titles_block}
+- Keep each non-CTA tip title distinct in structure and vocabulary.
+- Vary sentence shape across slides (not all imperative verbs, not all noun phrases).
 
 Schema guidance JSON:
 {schema_text}
@@ -185,6 +226,34 @@ def get_next_index(output_dir: Path, product_slug: str) -> int:
     return max_index + 1
 
 
+def collect_recent_titles(output_dir: Path, product_slug: str, lookback: int = 8) -> list[str]:
+    recent_files = sorted(
+        output_dir.glob(f"{product_slug}_*.json"),
+        key=lambda p: p.stat().st_mtime,
+        reverse=True,
+    )[:lookback]
+    titles: list[str] = []
+    for file_path in recent_files:
+        try:
+            payload = json.loads(file_path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        slides = payload.get("slides", [])
+        if not isinstance(slides, list):
+            continue
+        for slide in slides:
+            title = str(slide.get("title", "")).strip()
+            if title:
+                titles.append(title)
+    return titles[:18]
+
+
+def choose_hook_style(requested: str) -> str:
+    if requested != "auto":
+        return requested
+    return random.choice(HOOK_ARCHETYPES)
+
+
 def generate_script(args: argparse.Namespace) -> Path | None:
     load_env_file(Path(".env"))
     api_key = os.environ.get("OPENAI_API_KEY", "").strip()
@@ -194,7 +263,28 @@ def generate_script(args: argparse.Namespace) -> Path | None:
     product_md = args.product_md.read_text(encoding="utf-8")
     schema_text = args.schema.read_text(encoding="utf-8")
     template_text = args.template.read_text(encoding="utf-8")
-    prompt = build_prompt(product_md, schema_text, template_text, args.slides)
+
+    product_slug = slugify(args.product_md.stem)
+    args.output_dir.mkdir(parents=True, exist_ok=True)
+    recent_titles = collect_recent_titles(args.output_dir, product_slug)
+    hook_style = choose_hook_style(args.hook_style)
+    avoid_title_patterns = [
+        "7 ways to ...",
+        "X ways to ...",
+        "5 ways to ...",
+        "3 ways to ...",
+        "How to ... in 7 steps",
+    ]
+
+    prompt = build_prompt(
+        product_markdown=product_md,
+        schema_text=schema_text,
+        template_text=template_text,
+        target_slide_count=args.slides,
+        hook_style=hook_style,
+        avoid_title_patterns=avoid_title_patterns,
+        recent_titles=recent_titles,
+    )
 
     if args.dry_run:
         print("Dry run enabled. Prompt preview:")
@@ -212,13 +302,12 @@ def generate_script(args: argparse.Namespace) -> Path | None:
             {"role": "user", "content": prompt},
         ],
         temperature=args.temperature,
+        top_p=args.top_p,
     )
     output_text = response.output_text
     generated = parse_llm_json(output_text)
     validate_script_shape(generated)
 
-    product_slug = slugify(args.product_md.stem)
-    args.output_dir.mkdir(parents=True, exist_ok=True)
     file_index = get_next_index(args.output_dir, product_slug)
     output_path = args.output_dir / f"{product_slug}_{file_index:02d}.json"
     output_path.write_text(json.dumps(generated, indent=2), encoding="utf-8")

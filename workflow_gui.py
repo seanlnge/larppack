@@ -603,6 +603,7 @@ def photos_upload() -> str:
 def photos_embed_new() -> str:
     if is_async_job_request():
         job_id = create_job("Embed New Photos")
+        home_redirect_url = url_for("home")
 
         photos = list_photos()
         embedded_paths = read_embedding_paths()
@@ -624,7 +625,7 @@ def photos_embed_new() -> str:
             logs = run_embed_new_photos(on_line=_on_line)
             append_job_log(job_id, logs)
             update_job(job_id, progress=100)
-            return {"redirect_url": url_for("home")}
+            return {"redirect_url": home_redirect_url}
 
         run_background_job(job_id, _runner)
         return jsonify({"job_id": job_id})
@@ -691,6 +692,7 @@ def generate_from_product(file_name: str) -> str:
 
     if is_async_job_request():
         job_id = create_job(f"Generate Output: {file_name}")
+        home_redirect_url = url_for("home")
 
         def _runner() -> dict[str, Any]:
             current_progress = 5
@@ -718,9 +720,9 @@ def generate_from_product(file_name: str) -> str:
             logs, script_path, output_path = run_workflow(product_path, on_line=_on_line)
             append_job_log(job_id, logs)
 
-            result: dict[str, Any] = {"redirect_url": url_for("home")}
+            result: dict[str, Any] = {"redirect_url": home_redirect_url}
             if output_path is not None and output_path.exists():
-                result["redirect_url"] = url_for("output_view", output_name=output_path.name)
+                result["redirect_url"] = f"/output/{output_path.name}"
             if script_path is not None:
                 result["script_name"] = script_path.name
             return result
@@ -774,6 +776,7 @@ def output_upload_gdrive(output_name: str) -> str:
 
     if is_async_job_request():
         job_id = create_job(f"Upload to Drive: {output_name}")
+        output_redirect_url = url_for("output_view", output_name=output_name)
 
         def _runner() -> dict[str, Any]:
             update_job(job_id, progress=3)
@@ -784,7 +787,7 @@ def output_upload_gdrive(output_name: str) -> str:
 
             drive_link = upload_output_to_google_drive(path, on_progress=_on_progress)
             append_job_log(job_id, f"Uploaded successfully: {drive_link}")
-            return {"redirect_url": url_for("output_view", output_name=output_name), "drive_link": drive_link}
+            return {"redirect_url": output_redirect_url, "drive_link": drive_link}
 
         run_background_job(job_id, _runner)
         return jsonify({"job_id": job_id})
