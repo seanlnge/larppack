@@ -35,6 +35,7 @@ SETTINGS_FIELDS = [
     ("GOOGLE_DRIVE_REFRESH_TOKEN", "Google Drive Refresh Token", True),
     ("GOOGLE_DRIVE_REDIRECT_URI", "Google Drive Redirect URI", False),
     ("GOOGLE_DRIVE_FOLDER_ID", "Google Drive Folder ID (optional)", False),
+    ("GOOGLE_DRIVE_FOLDER_NAME", "Google Drive Folder Name (optional)", False),
 ]
 
 OUTPUT_LINE_RE = re.compile(r"Done\. Generated \d+ slides in (.+)")
@@ -271,7 +272,8 @@ def refresh_google_access_token(env_vars: dict[str, str]) -> str:
 def upload_output_to_google_drive(output_dir: Path) -> str:
     env_vars = load_env_vars()
     access_token = env_vars.get("GOOGLE_DRIVE_ACCESS_TOKEN", "")
-    folder_id = env_vars.get("GOOGLE_DRIVE_FOLDER_ID", "")
+    folder_id = env_vars.get("GOOGLE_DRIVE_FOLDER_ID", "").strip()
+    folder_name = env_vars.get("GOOGLE_DRIVE_FOLDER_NAME", "").strip()
 
     if not access_token:
         access_token = refresh_google_access_token(env_vars)
@@ -282,56 +284,127 @@ def upload_output_to_google_drive(output_dir: Path) -> str:
             "GOOGLE_DRIVE_REFRESH_TOKEN + GOOGLE_DRIVE_OAUTH_CLIENT_ID + GOOGLE_DRIVE_OAUTH_CLIENT_SECRET."
         )
 
+    auth_headers = {"Authorization": f"Bearer {access_token}"}
+    resolved_folder_id = resolve_or_create_folder_id(
+        access_token=access_token,
+        folder_id=folder_id,
+        folder_name=folder_name,
+    )
+
+    if resolved_folder_id and resolved_folder_id != folder_id:
+        upsert_env_vars(ENV_PATH, {"GOOGLE_DRIVE_FOLDER_ID": resolved_folder_id})
+
     with tempfile.TemporaryDirectory() as temp_dir:
         zip_base = Path(temp_dir) / output_dir.name
         archive_file = shutil.make_archive(str(zip_base), "zip", root_dir=str(output_dir))
         archive_path = Path(archive_file)
 
-        metadata: dict[str, Any] = {"name": archive_path.name}
-        if folder_id:
-            metadata["parents"] = [folder_id]
+        metadata: dict[str, Any] = {"name": archive_path.name, "mimeType": "application/zip"}
+        if resolved_folder_id:
+            metadata["parents"] = [resolved_folder_id]
 
-        multipart = {
-            "metadata": ("metadata", requests.compat.json.dumps(metadata), "application/json; charset=UTF-8"),
-            "file": (archive_path.name, archive_path.read_bytes(), "application/zip"),
-        }
-
-        upload_urls = [
-            "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart",
-            "https://content.googleapis.com/upload/drive/v3/files?uploadType=multipart",
-            "https://www.googleapis.com/drive/v3/files?uploadType=multipart",
-        ]
-
-        last_error = ""
-        for upload_url in upload_urls:
-            response = requests.post(
-                upload_url,
-                headers={"Authorization": f"Bearer {access_token}"},
-                files=multipart,
-                timeout=120,
-            )
-
-            if response.status_code < 400:
-                file_payload = response.json()
-                file_id = file_payload.get("id", "")
-                if not file_id:
-                    raise RuntimeError(f"Upload succeeded but no file id returned: {file_payload}")
-                return f"https://drive.google.com/file/d/{file_id}/view"
-
-            body_preview = response.text[:1000]
-            last_error = (
-                f"{response.status_code} {response.reason} at {upload_url}. "
-                f"Response: {body_preview}"
-            )
-            # Keep trying alternates on 404, otherwise stop immediately.
-            if response.status_code != 404:
-                break
-
-        raise RuntimeError(
-            "Google Drive upload failed. "
-            "Confirm Drive API is enabled and OAuth app is configured correctly. "
-            f"Last error: {last_error}"
+        # Step 1: Create file metadata entry and get a file id.
+        create_resp = requests.post(
+            "https://www.googleapis.com/drive/v3/files?supportsAllDrives=true&fields=id",
+            headers=auth_headers,
+            json=metadata,
+            timeout=60,
         )
+        if create_resp.status_code >= 400:
+            raise RuntimeError(
+                "Google Drive metadata create failed. "
+                f"{create_resp.status_code} {create_resp.reason}. Response: {create_resp.text[:1000]}"
+            )
+
+        file_id = create_resp.json().get("id", "")
+        if not file_id:
+            raise RuntimeError(f"Google Drive create response missing file id: {create_resp.text[:1000]}")
+
+        # Step 2: Upload zip bytes as media content for that file id.
+        media_resp = requests.patch(
+            f"https://www.googleapis.com/upload/drive/v3/files/{file_id}?uploadType=media&supportsAllDrives=true",
+            headers={**auth_headers, "Content-Type": "application/zip"},
+            data=archive_path.read_bytes(),
+            timeout=180,
+        )
+        if media_resp.status_code >= 400:
+            raise RuntimeError(
+                "Google Drive media upload failed. "
+                f"{media_resp.status_code} {media_resp.reason}. Response: {media_resp.text[:1000]}"
+            )
+
+        return f"https://drive.google.com/file/d/{file_id}/view"
+
+
+def resolve_or_create_folder_id(access_token: str, folder_id: str, folder_name: str) -> str:
+    auth_headers = {"Authorization": f"Bearer {access_token}"}
+    effective_name = folder_name
+
+    # If folder_id exists, verify it points to an accessible folder.
+    if folder_id:
+        verify = requests.get(
+            f"https://www.googleapis.com/drive/v3/files/{folder_id}?fields=id,mimeType,name&supportsAllDrives=true",
+            headers=auth_headers,
+            timeout=30,
+        )
+        if verify.status_code < 400:
+            mime = verify.json().get("mimeType", "")
+            if mime != "application/vnd.google-apps.folder":
+                raise RuntimeError(f"GOOGLE_DRIVE_FOLDER_ID is not a folder: {folder_id}")
+            return folder_id
+
+        # Common case: user put folder name into GOOGLE_DRIVE_FOLDER_ID
+        if verify.status_code == 404 and not effective_name:
+            effective_name = folder_id
+        elif verify.status_code != 404:
+            raise RuntimeError(
+                "Could not verify GOOGLE_DRIVE_FOLDER_ID. "
+                f"{verify.status_code} {verify.reason}. Response: {verify.text[:800]}"
+            )
+
+    if not effective_name:
+        return ""
+
+    # Try finding existing folder by name.
+    q_name = effective_name.replace("'", "\\'")
+    search = requests.get(
+        "https://www.googleapis.com/drive/v3/files",
+        headers=auth_headers,
+        params={
+            "q": f"mimeType='application/vnd.google-apps.folder' and name='{q_name}' and trashed=false",
+            "fields": "files(id,name)",
+            "spaces": "drive",
+            "pageSize": 10,
+            "supportsAllDrives": "true",
+            "includeItemsFromAllDrives": "true",
+        },
+        timeout=30,
+    )
+    if search.status_code >= 400:
+        raise RuntimeError(
+            "Failed searching Drive folder by name. "
+            f"{search.status_code} {search.reason}. Response: {search.text[:800]}"
+        )
+    files = search.json().get("files", [])
+    if files:
+        return str(files[0].get("id", "")).strip()
+
+    # Create folder if it does not exist.
+    create = requests.post(
+        "https://www.googleapis.com/drive/v3/files?supportsAllDrives=true&fields=id,name",
+        headers=auth_headers,
+        json={"name": effective_name, "mimeType": "application/vnd.google-apps.folder"},
+        timeout=30,
+    )
+    if create.status_code >= 400:
+        raise RuntimeError(
+            "Failed creating Drive folder. "
+            f"{create.status_code} {create.reason}. Response: {create.text[:800]}"
+        )
+    new_id = str(create.json().get("id", "")).strip()
+    if not new_id:
+        raise RuntimeError(f"Drive folder creation returned no id: {create.text[:800]}")
+    return new_id
 
 
 @app.route("/")
