@@ -1,0 +1,85 @@
+{
+  "slideCount": 7,
+  "imageDescriptor": "floral, intimate, cinematic fragrance lifestyle, premium editorial, soft contrast, subtle luxury",
+  "productWebsite": "scentnode.com",
+  "textColor": "#FFFFFF",
+  "textBackgroundColor": "#000000",
+  "slides": [
+    {
+      "slideType": "title",
+      "title": "7 ways to create a scent that feels like you",
+      "backgroundImage": {
+        "descriptor": "Close-up of perfume bottles, flower petals, and warm light on a vanity",
+        "style": "cinematic luxury editorial photography",
+        "mood": "intimate, aspirational, creative",
+        "negativePrompt": "no text, no logos, no clutter, no harsh lighting"
+      }
+    },
+    {
+      "slideType": "tip",
+      "title": "Start with a feeling",
+      "content": "Pick a mood first: clean, cozy, seductive, bright, nostalgic, or quietly powerful.",
+      "backgroundImage": {
+        "descriptor": "Soft-focus scene with flowers, fabric, and a glowing perfume bottle",
+        "style": "premium lifestyle product photography",
+        "mood": "dreamy, emotional, refined",
+        "negativePrompt": "no readable text, no brand labels, no messy composition"
+      }
+    },
+    {
+      "slideType": "tip",
+      "title": "Use memory as direction",
+      "content": "The best scent ideas come from places, people, seasons, and specific moments.",
+      "backgroundImage": {
+        "descriptor": "Editorial still life evoking memory with perfume, postcards, and delicate florals",
+        "style": "atmospheric cinematic editorial",
+        "mood": "nostalgic, personal, elegant",
+        "negativePrompt": "no readable writing, no logos, no visual clutter"
+      }
+    },
+    {
+      "slideType": "tip",
+      "title": "Don't chase too many notes",
+      "content": "One clear scent identity beats a confused blend trying to do everything.",
+      "backgroundImage": {
+        "descriptor": "Minimal arrangement of a single perfume bottle with a few curated botanicals",
+        "style": "clean high-end commercial photography",
+        "mood": "focused, polished, intentional",
+        "negativePrompt": "no extra objects, no text, no busy background"
+      }
+    },
+    {
+      "slideType": "tip",
+      "title": "Let contrast make it memorable",
+      "content": "Pair soft florals with woods, citrus with musk, or sweetness with smoke.",
+      "backgroundImage": {
+        "descriptor": "Moody fragrance composition with citrus, petals, woods, and shadow play",
+        "style": "rich editorial product photography",
+        "mood": "bold, sophisticated, sensory",
+        "negativePrompt": "no labels, no text, no chaotic styling"
+      }
+    },
+    {
+      "slideType": "cta_bridge",
+      "title": "Use guidance, not guesswork",
+      "content": "A simple creative framework helps beginners turn taste and memory into real scent direction.",
+      "backgroundImage": {
+        "descriptor": "Elegant workspace with fragrance blotters, ingredient references, and soft floral accents",
+        "style": "clean founder desk editorial photography",
+        "mood": "confident, modern, inviting",
+        "negativePrompt": "no readable screens, no logos, no cluttered desk"
+      }
+    },
+    {
+      "slideType": "cta_final",
+      "title": "Start your first scent journey with ScentNode",
+      "content": "Discover your signature fragrance with beginner-friendly guidance at scentnode.com.",
+      "backgroundImage": {
+        "descriptor": "Luxury perfume scene with florals and glowing studio light, styled for discovery",
+        "style": "premium cinematic product photography",
+        "mood": "motivating, polished, aspirational",
+        "negativePrompt": "no text, no logos, no clutter, no harsh shadows"
+      }
+    }
+  ]
+}

@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>TikTokGen Workflow</title>
+    <link rel="stylesheet" href="{{ url_for('serve_file', relative_path='web/style.css') }}" />
+  </head>
+  <body>
+    <header>
+      <h1>TikTokGen Workflow GUI</h1>
+      <nav>
+        <a href="{{ url_for('home') }}">Home</a>
+        <a href="{{ url_for('product_new') }}">New Product</a>
+        <a href="{{ url_for('settings_env') }}">.env Settings</a>
+      </nav>
+    </header>
+
+    <main>
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          <section class="messages">
+            {% for category, message in messages %}
+              <div class="message {{ category }}">{{ message }}</div>
+            {% endfor %}
+          </section>
+        {% endif %}
+      {% endwith %}
+
+      {% block content %}{% endblock %}
+    </main>
+  </body>
+</html>

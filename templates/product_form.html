@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="panel">
+  <h2>{{ title }}</h2>
+  <form method="post" class="stack">
+    {% if not file_name %}
+      <label>
+        Product Name
+        <input type="text" name="name" placeholder="Example: luxury perfume kit" required />
+      </label>
+    {% else %}
+      <p><strong>{{ file_name }}</strong></p>
+    {% endif %}
+
+    <label>
+      Product Markdown
+      <textarea name="content" rows="24" required>{{ content }}</textarea>
+    </label>
+
+    <div class="actions">
+      <button class="btn primary" type="submit">Save</button>
+      <a class="btn" href="{{ url_for('home') }}">Back</a>
+    </div>
+  </form>
+</section>
+{% endblock %}

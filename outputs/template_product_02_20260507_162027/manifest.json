@@ -1,0 +1,65 @@
+[
+  {
+    "slide_index": 1,
+    "slide_type": "title",
+    "selected_image": "pexels-kpaukshtite-713042.jpg",
+    "similarity": 0.327018,
+    "query_text": "floral, intimate, cinematic, premium fragrance lifestyle, soft contrast, rich color, subtle luxury, Elegant perfume bottles, flower petals, and mood objects arranged on a moody vanity, cinematic editorial fragrance photography, personal, luxurious, intriguing",
+    "negative_prompt": "no text, no logos, no clutter, no harsh lighting",
+    "output_file": "slide01_final.png"
+  },
+  {
+    "slide_index": 2,
+    "slide_type": "tip",
+    "selected_image": "pexels-gravitycut-7260252.jpg",
+    "similarity": 0.270893,
+    "query_text": "floral, intimate, cinematic, premium fragrance lifestyle, soft contrast, rich color, subtle luxury, Soft-focus scene with roses, linen fabric, and a reflective tray under ambient light, atmospheric lifestyle editorial photography, nostalgic, intimate, dreamy",
+    "negative_prompt": "no readable text, no brand names, no busy composition",
+    "output_file": "slide02_final.png"
+  },
+  {
+    "slide_index": 3,
+    "slide_type": "tip",
+    "selected_image": "pexels-larissafarber-30770233.jpg",
+    "similarity": 0.299662,
+    "query_text": "floral, intimate, cinematic, premium fragrance lifestyle, soft contrast, rich color, subtle luxury, Minimal arrangement of perfume materials with soft smoke and green botanicals, modern premium still life photography, confident, clear, sophisticated",
+    "negative_prompt": "no lab equipment, no formulas, no visible labels",
+    "output_file": "slide03_final.png"
+  },
+  {
+    "slide_index": 4,
+    "slide_type": "tip",
+    "selected_image": "pexels-peg1997-12495924.jpg",
+    "similarity": 0.306878,
+    "query_text": "floral, intimate, cinematic, premium fragrance lifestyle, soft contrast, rich color, subtle luxury, Single perfume bottle spotlighted beside velvet fabric and one striking flower, high-end commercial fragrance photography, focused, elegant, memorable",
+    "negative_prompt": "no text, no extra products, no distracting props",
+    "output_file": "slide04_final.png"
+  },
+  {
+    "slide_index": 5,
+    "slide_type": "tip",
+    "selected_image": "pexels-rdne-8903264.jpg",
+    "similarity": 0.26956,
+    "query_text": "floral, intimate, cinematic, premium fragrance lifestyle, soft contrast, rich color, subtle luxury, Curated vanity with candle, skincare bottle, and fragrance items in cohesive tones, luxury lifestyle flat lay, insightful, polished, warm",
+    "negative_prompt": "no readable labels, no clutter, no harsh shadows",
+    "output_file": "slide05_final.png"
+  },
+  {
+    "slide_index": 6,
+    "slide_type": "cta_bridge",
+    "selected_image": "pexels-valeriya-965730.jpg",
+    "similarity": 0.31333,
+    "query_text": "floral, intimate, cinematic, premium fragrance lifestyle, soft contrast, rich color, subtle luxury, Creative desk with fragrance blotters, floral stems, notebook, and elegant perfume tools, clean founder editorial photography, empowering, strategic, premium",
+    "negative_prompt": "no screens with readable text, no messy workspace, no logos",
+    "output_file": "slide06_final.png"
+  },
+  {
+    "slide_index": 7,
+    "slide_type": "cta_final",
+    "selected_image": "pexels-fariborzart-11197178.jpg",
+    "similarity": 0.287925,
+    "query_text": "floral, intimate, cinematic, premium fragrance lifestyle, soft contrast, rich color, subtle luxury, Premium fragrance scene with perfume bottle, petals, and glowing studio light, cinematic luxury product photography, aspirational, inviting, refined",
+    "negative_prompt": "no text, no logos, no clutter, no low-quality details",
+    "output_file": "slide07_final.png"
+  }
+]

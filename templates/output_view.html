@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="panel">
+  <h2>Output: {{ output_name }}</h2>
+  <div class="actions">
+    <a class="btn" href="{{ url_for('home') }}">Back</a>
+    <form method="post" action="{{ url_for('output_upload_gdrive', output_name=output_name) }}">
+      <button class="btn primary" type="submit">Save to Google Drive</button>
+    </form>
+  </div>
+</section>
+
+<section class="panel">
+  <h3>Slides</h3>
+  {% if slides %}
+    <div class="slides-grid">
+      {% for slide in slides %}
+        <figure>
+          <img src="{{ url_for('serve_file', relative_path=slide) }}" alt="Slide">
+          <figcaption>{{ slide.split('/')[-1] }}</figcaption>
+        </figure>
+      {% endfor %}
+    </div>
+  {% else %}
+    <p>No slide images in this output folder.</p>
+  {% endif %}
+</section>
+
+<section class="panel">
+  <h3>Manifest</h3>
+  {% if manifest %}
+    <pre>{{ manifest }}</pre>
+  {% else %}
+    <p>No manifest.json found.</p>
+  {% endif %}
+</section>
+{% endblock %}

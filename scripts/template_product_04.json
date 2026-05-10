@@ -1,0 +1,85 @@
+{
+  "slideCount": 7,
+  "imageDescriptor": "floral, intimate, cinematic fragrance lifestyle, premium editorial, soft contrast, rich color, subtle luxury",
+  "productWebsite": "scentnode.com",
+  "textColor": "#FFFFFF",
+  "textBackgroundColor": "#000000",
+  "slides": [
+    {
+      "slideType": "title",
+      "title": "7 ways to create a signature scent without overwhelm",
+      "backgroundImage": {
+        "descriptor": "Moody close-up of perfume bottles, flower petals, and warm light on a luxe vanity",
+        "style": "cinematic premium editorial photography",
+        "mood": "aspirational, intimate, creative",
+        "negativePrompt": "no text, no logos, no clutter, no harsh flash"
+      }
+    },
+    {
+      "slideType": "tip",
+      "title": "Start with a feeling",
+      "content": "Pick a mood first: clean, cozy, seductive, bright, grounded, or nostalgic.",
+      "backgroundImage": {
+        "descriptor": "Soft-focus floral arrangement beside elegant perfume materials in golden window light",
+        "style": "atmospheric lifestyle product photography",
+        "mood": "dreamy, warm, reflective",
+        "negativePrompt": "no readable text, no brand labels, no messy background"
+      }
+    },
+    {
+      "slideType": "tip",
+      "title": "Use memory as direction",
+      "content": "Think rain on pavement, fresh laundry, a hotel lobby, or summer skin.",
+      "backgroundImage": {
+        "descriptor": "Editorial still life evoking scent memories with linen, citrus, petals, and glass vials",
+        "style": "modern cinematic still life photography",
+        "mood": "nostalgic, sensory, elegant",
+        "negativePrompt": "no text overlays, no logos, no chaotic composition"
+      }
+    },
+    {
+      "slideType": "tip",
+      "title": "Don\u2019t chase every note",
+      "content": "Choose one hero vibe, then let supporting notes build around it.",
+      "backgroundImage": {
+        "descriptor": "Minimal arrangement of fragrance ingredients with one central bottle under soft shadow",
+        "style": "minimal luxury editorial photography",
+        "mood": "focused, refined, confident",
+        "negativePrompt": "no readable labels, no clutter, no extra hands"
+      }
+    },
+    {
+      "slideType": "tip",
+      "title": "Keep it beginner simple",
+      "content": "Plain-language scent families beat technical jargon when you\u2019re finding your style.",
+      "backgroundImage": {
+        "descriptor": "Clean tabletop with curated fragrance ingredients, petals, and simple scent tools",
+        "style": "premium ecommerce editorial photography",
+        "mood": "approachable, polished, calm",
+        "negativePrompt": "no lab setting, no scientific diagrams, no text, no mess"
+      }
+    },
+    {
+      "slideType": "cta_bridge",
+      "title": "Turn taste into a process",
+      "content": "A guided framework makes your scent ideas clearer, faster, and way less intimidating.",
+      "backgroundImage": {
+        "descriptor": "Creative fragrance planning scene with perfume samples, flowers, and a refined workspace",
+        "style": "clean founder desk editorial photography",
+        "mood": "strategic, inspiring, professional",
+        "negativePrompt": "no readable screens, no logos, no cluttered desk"
+      }
+    },
+    {
+      "slideType": "cta_final",
+      "title": "Start your first scent journey with ScentNode",
+      "content": "Discover your fragrance direction with beginner-friendly guidance at scentnode.com.",
+      "backgroundImage": {
+        "descriptor": "Elegant fragrance creation scene with perfume bottle, petals, and soft studio glow",
+        "style": "high-end commercial lifestyle photography",
+        "mood": "inviting, luxurious, empowering",
+        "negativePrompt": "no text, no logos, no clutter, no harsh lighting"
+      }
+    }
+  ]
+}

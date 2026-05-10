@@ -1,0 +1,52 @@
+{
+    "slideCount": "total number of slides",
+    "imageDescriptor": "general image descriptor for the entire slideshow, used to keep consistency across all slide backgrounds",
+    "productWebsite": "website of the product, will be included in the final slide",
+    "textColor": "color of the text in the slides",
+    "textBackgroundColor": "color of the background of the text in the slides",
+    "slides": [
+        {
+            "slideType": "title",
+            "title": "title of the slide, aim for 8-10 words",
+            "backgroundImage": {
+                "descriptor": "specific image descriptor for the background image",
+                "style": "style of the background image",
+                "mood": "mood of the background image",
+                "negativePrompt": "negative prompt for the background image"
+            }
+        },
+        {
+            "slideType": "tip",
+            "title": "title of the slide, aim for 5-8 words",
+            "content": "content of the slide, aim for 10-15 words",
+            "backgroundImage": {
+                "descriptor": "specific image descriptor for the background image",
+                "style": "style of the background image",
+                "mood": "mood of the background image",
+                "negativePrompt": "negative prompt for the background image"
+            }
+        },
+        {
+            "slideType": "cta_bridge",
+            "title": "Systemize the experience",
+            "content": "Use a repeatable process to make every customer touchpoint feel consistent.",
+            "backgroundImage": {
+                "descriptor": "specific image descriptor for the background image",
+                "style": "style of the background image",
+                "mood": "mood of the background image",
+                "negativePrompt": "negative prompt for the background image"
+            }
+        },
+        {
+            "slideType": "cta_final",
+            "title": "Related to previous slides, but includes the product name",
+            "content": "Content of the slide, pitch the product 10-15 words",
+            "backgroundImage": {
+                "descriptor": "specific image descriptor for the background image",
+                "style": "style of the background image",
+                "mood": "mood of the background image",
+                "negativePrompt": "negative prompt for the background image"
+            }
+        }
+    ]
+}

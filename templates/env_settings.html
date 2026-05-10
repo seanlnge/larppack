@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="panel">
+  <h2>.env Settings</h2>
+  <p>
+    Update environment variables used by this workflow.
+    For Google Drive uploads, configure API key + OAuth token values here.
+  </p>
+  <form method="post" class="stack">
+    <textarea name="content" rows="24" required>{{ content }}</textarea>
+    <div class="actions">
+      <button class="btn primary" type="submit">Save .env</button>
+      <a class="btn" href="{{ url_for('home') }}">Back</a>
+    </div>
+  </form>
+</section>
+{% endblock %}

@@ -1,0 +1,47 @@
+[
+  {
+    "slide_index": 1,
+    "slide_type": "title",
+    "selected_image": "pexels-peg1997-12495924.jpg",
+    "similarity": 0.290384,
+    "query_text": "floral, perfume, luxury, high-end, Close-up of elegant product packaging on a clean studio table, minimal luxury editorial photography, premium, calm, intentional",
+    "negative_prompt": "no text, no logos, no clutter",
+    "output_file": "slide01_final.png"
+  },
+  {
+    "slide_index": 2,
+    "slide_type": "tip",
+    "selected_image": "pexels-kpaukshtite-713042.jpg",
+    "similarity": 0.279739,
+    "query_text": "floral, perfume, luxury, high-end, Hands opening a neatly wrapped box with tissue paper, soft cinematic product photography, anticipatory, polished",
+    "negative_prompt": "no visible brand names, no messy background",
+    "output_file": "slide02_final.png"
+  },
+  {
+    "slide_index": 3,
+    "slide_type": "tip",
+    "selected_image": "pexels-rdne-8903264.jpg",
+    "similarity": 0.292339,
+    "query_text": "floral, perfume, luxury, high-end, Branded card, ribbon, and product arranged in a cohesive flat lay, modern ecommerce editorial, memorable, refined",
+    "negative_prompt": "no readable text, no fake logos",
+    "output_file": "slide03_final.png"
+  },
+  {
+    "slide_index": 4,
+    "slide_type": "cta_bridge",
+    "selected_image": "pexels-larissafarber-30770233.jpg",
+    "similarity": 0.304539,
+    "query_text": "floral, perfume, luxury, high-end, Creative workspace with product samples, notes, and packaging materials, clean founder desk photography, strategic, professional",
+    "negative_prompt": "no screens with readable text",
+    "output_file": "slide04_final.png"
+  },
+  {
+    "slide_index": 5,
+    "slide_type": "cta_final",
+    "selected_image": "pexels-fariborzart-11197178.jpg",
+    "similarity": 0.315949,
+    "query_text": "floral, perfume, luxury, high-end, Premium product packaging arranged under soft studio lighting, high-end commercial product photography, aspirational, polished",
+    "negative_prompt": "no text, no logos, no clutter",
+    "output_file": "slide05_final.png"
+  }
+]

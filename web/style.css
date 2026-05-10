@@ -1,0 +1,181 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background: #111;
+  color: #f5f5f5;
+}
+
+header {
+  padding: 16px 20px;
+  border-bottom: 1px solid #2a2a2a;
+  position: sticky;
+  top: 0;
+  background: #111;
+}
+
+header h1 {
+  margin: 0 0 8px;
+  font-size: 22px;
+}
+
+nav a {
+  color: #9cc9ff;
+  margin-right: 14px;
+  text-decoration: none;
+}
+
+main {
+  padding: 18px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.panel {
+  background: #1b1b1b;
+  border: 1px solid #2a2a2a;
+  border-radius: 8px;
+  margin-bottom: 18px;
+  padding: 14px;
+}
+
+.messages {
+  margin-bottom: 14px;
+}
+
+.message {
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 8px;
+  white-space: pre-wrap;
+}
+
+.message.success {
+  background: #173b1f;
+}
+
+.message.error {
+  background: #4c1c1c;
+}
+
+.message.info {
+  background: #1c2b4c;
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid #2a2a2a;
+}
+
+.list li:last-child {
+  border-bottom: 0;
+}
+
+.compact li {
+  padding: 6px 0;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.btn {
+  background: #333;
+  border: 1px solid #4a4a4a;
+  color: #fff;
+  border-radius: 6px;
+  padding: 8px 10px;
+  cursor: pointer;
+  text-decoration: none;
+  font-size: 13px;
+}
+
+.btn.primary {
+  background: #1858d1;
+  border-color: #1858d1;
+}
+
+.btn.danger {
+  background: #8f2f2f;
+  border-color: #8f2f2f;
+}
+
+.stack {
+  display: grid;
+  gap: 12px;
+}
+
+textarea,
+input[type="text"] {
+  width: 100%;
+  background: #0f0f0f;
+  color: #f0f0f0;
+  border: 1px solid #3a3a3a;
+  border-radius: 6px;
+  padding: 10px;
+  font-family: Consolas, monospace;
+}
+
+.output-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.output-card {
+  background: #151515;
+  border: 1px solid #2a2a2a;
+  border-radius: 8px;
+  padding: 10px;
+}
+
+.output-card img {
+  width: 100%;
+  border-radius: 6px;
+  margin-bottom: 8px;
+}
+
+.slides-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.slides-grid img {
+  width: 100%;
+  border-radius: 6px;
+}
+
+figure {
+  margin: 0;
+}
+
+figcaption {
+  margin-top: 4px;
+  color: #bbb;
+  font-size: 12px;
+}
+
+pre {
+  background: #0f0f0f;
+  border: 1px solid #2a2a2a;
+  border-radius: 6px;
+  padding: 10px;
+  overflow: auto;
+}

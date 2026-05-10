@@ -1,0 +1,41 @@
+- [x] Inspect local CLIP model folder and image input folder layout.
+- [x] Implement a Python script that embeds every image in `larppack/`.
+- [x] Serialize `file_name` + embedding vectors into a JSON file.
+- [x] Run the script to verify output is produced without errors.
+- [x] Implement `generate_slides.py` to parse schema-style JSON input and render final slide PNGs.
+- [x] Use CLIP ViT-B/16 query embeddings with negative-prompt subtraction for image selection.
+- [x] Enforce non-repeating background image selection across slides.
+- [x] Match reference style: 1080x1920 frame, rounded black text cards, white bold text, CTA sticker.
+- [x] Generate a timestamped output folder under `outputs/` with `slideNN_final.png` files and `manifest.json`.
+- [x] Verify generated slide count, dimensions, and unique selected backgrounds.
+- [x] Add a workflow script to generate TikTok slideshow JSON from `/products/*.md` via OpenAI.
+- [x] Feed schema + template + product markdown into GPT and validate generated JSON shape.
+- [x] Save generated scripts with naming convention `scripts/[productname]_[index].json`.
+- [x] Add a template product markdown file for easy test runs.
+- [x] Build a local GUI + webserver to manage products and outputs.
+- [x] Add product CRUD actions (view/edit/add/remove) in the GUI.
+- [x] Add output browsing plus one-click generation from product markdown.
+- [x] Add Google Drive upload action for output folders.
+- [x] Add .env editor page in the GUI.
+- [x] Add start script for launching the GUI server.
+- [x] Add main-screen GUI controls for uploading new photos and embedding only new photos.
+- [x] Update embedding pipeline to track image paths in embeddings JSON and skip re-embedding existing paths.
+- [x] Update slide generation to consume image_path-aware embeddings while remaining backward-compatible.
+
+## Review
+
+- Executed `python embed_larppack_clip.py` successfully.
+- Confirmed output file `larppack_embeddings.json` contains 153 records.
+- Confirmed each embedding vector has length 512.
+- Executed `python generate_slides.py --input-json template_input_schema.json` successfully after fixing sticker rendering.
+- Generated outputs in `outputs/template_input_schema_20260507_022015/`.
+- Confirmed generated slide dimensions are all `1080x1920`.
+- Confirmed all selected background images in `manifest.json` are unique.
+- Added `generate_tiktok_script.py` workflow with `.env` API-key loading and output-shape validation.
+- Added `products/template_product.md` as a sample input for testing script generation.
+- Added `workflow_gui.py` Flask app with product CRUD, generation triggers, output gallery, and `.env` editing.
+- Added Google Drive upload action that zips output folders and uploads via Drive API.
+- Added `start_gui.bat` for one-command local launch.
+- Added GUI photo management actions on home page: upload images and run incremental embedding.
+- Updated `embed_larppack_clip.py` to support `--incremental` mode and persist `image_path` for each embedding entry.
+- Updated `generate_slides.py` to use `image_path` when present (fallback to `file_name`).

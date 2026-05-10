@@ -1,0 +1,65 @@
+[
+  {
+    "slide_index": 1,
+    "slide_type": "title",
+    "selected_image": "pexels-kpaukshtite-713042.jpg",
+    "similarity": 0.297655,
+    "query_text": "floral, intimate, cinematic fragrance lifestyle, premium editorial, soft contrast, subtle luxury, Close-up of perfume bottles, flower petals, and warm light on a vanity, cinematic luxury editorial photography, intimate, aspirational, creative",
+    "negative_prompt": "no text, no logos, no clutter, no harsh lighting",
+    "output_file": "slide01_final.png"
+  },
+  {
+    "slide_index": 2,
+    "slide_type": "tip",
+    "selected_image": "pexels-valeriya-965730.jpg",
+    "similarity": 0.260611,
+    "query_text": "floral, intimate, cinematic fragrance lifestyle, premium editorial, soft contrast, subtle luxury, Soft-focus scene with flowers, fabric, and a glowing perfume bottle, premium lifestyle product photography, dreamy, emotional, refined",
+    "negative_prompt": "no readable text, no brand labels, no messy composition",
+    "output_file": "slide02_final.png"
+  },
+  {
+    "slide_index": 3,
+    "slide_type": "tip",
+    "selected_image": "pexels-larissafarber-30770233.jpg",
+    "similarity": 0.307716,
+    "query_text": "floral, intimate, cinematic fragrance lifestyle, premium editorial, soft contrast, subtle luxury, Editorial still life evoking memory with perfume, postcards, and delicate florals, atmospheric cinematic editorial, nostalgic, personal, elegant",
+    "negative_prompt": "no readable writing, no logos, no visual clutter",
+    "output_file": "slide03_final.png"
+  },
+  {
+    "slide_index": 4,
+    "slide_type": "tip",
+    "selected_image": "pexels-fariborzart-11197178.jpg",
+    "similarity": 0.32324,
+    "query_text": "floral, intimate, cinematic fragrance lifestyle, premium editorial, soft contrast, subtle luxury, Minimal arrangement of a single perfume bottle with a few curated botanicals, clean high-end commercial photography, focused, polished, intentional",
+    "negative_prompt": "no extra objects, no text, no busy background",
+    "output_file": "slide04_final.png"
+  },
+  {
+    "slide_index": 5,
+    "slide_type": "tip",
+    "selected_image": "pexels-peg1997-12495924.jpg",
+    "similarity": 0.27765,
+    "query_text": "floral, intimate, cinematic fragrance lifestyle, premium editorial, soft contrast, subtle luxury, Moody fragrance composition with citrus, petals, woods, and shadow play, rich editorial product photography, bold, sophisticated, sensory",
+    "negative_prompt": "no labels, no text, no chaotic styling",
+    "output_file": "slide05_final.png"
+  },
+  {
+    "slide_index": 6,
+    "slide_type": "cta_bridge",
+    "selected_image": "pexels-kpaukshtite-3272365.jpg",
+    "similarity": 0.307342,
+    "query_text": "floral, intimate, cinematic fragrance lifestyle, premium editorial, soft contrast, subtle luxury, Elegant workspace with fragrance blotters, ingredient references, and soft floral accents, clean founder desk editorial photography, confident, modern, inviting",
+    "negative_prompt": "no readable screens, no logos, no cluttered desk",
+    "output_file": "slide06_final.png"
+  },
+  {
+    "slide_index": 7,
+    "slide_type": "cta_final",
+    "selected_image": "pexels-jay-soundo-2148060180-33820361.jpg",
+    "similarity": 0.277388,
+    "query_text": "floral, intimate, cinematic fragrance lifestyle, premium editorial, soft contrast, subtle luxury, Luxury perfume scene with florals and glowing studio light, styled for discovery, premium cinematic product photography, motivating, polished, aspirational",
+    "negative_prompt": "no text, no logos, no clutter, no harsh shadows",
+    "output_file": "slide07_final.png"
+  }
+]

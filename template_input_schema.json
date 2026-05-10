@@ -1,0 +1,63 @@
+{
+  "slideCount": 5,
+  "imageDescriptor": "floral, perfume, luxury, high-end",
+  "productWebsite": "scentnode.com",
+  "textColor": "#FFFFFF",
+  "textBackgroundColor": "#000000",
+  "slides": [
+    {
+      "slideType": "title",
+      "title": "5 ways to make your brand feel premium",
+      "backgroundImage": {
+        "descriptor": "Close-up of elegant product packaging on a clean studio table",
+        "style": "minimal luxury editorial photography",
+        "mood": "premium, calm, intentional",
+        "negativePrompt": "no text, no logos, no clutter"
+      }
+    },
+    {
+      "slideType": "tip",
+      "title": "Control the first impression",
+      "content": "Your packaging should create a clear feeling before the product is opened.",
+      "backgroundImage": {
+        "descriptor": "Hands opening a neatly wrapped box with tissue paper",
+        "style": "soft cinematic product photography",
+        "mood": "anticipatory, polished",
+        "negativePrompt": "no visible brand names, no messy background"
+      }
+    },
+    {
+      "slideType": "tip",
+      "title": "Use one signature detail",
+      "content": "A repeated visual, texture, scent, or phrase helps customers remember you.",
+      "backgroundImage": {
+        "descriptor": "Branded card, ribbon, and product arranged in a cohesive flat lay",
+        "style": "modern ecommerce editorial",
+        "mood": "memorable, refined",
+        "negativePrompt": "no readable text, no fake logos"
+      }
+    },
+    {
+      "slideType": "cta_bridge",
+      "title": "Systemize the experience",
+      "content": "Use a repeatable process to make every customer touchpoint feel consistent.",
+      "backgroundImage": {
+        "descriptor": "Creative workspace with product samples, notes, and packaging materials",
+        "style": "clean founder desk photography",
+        "mood": "strategic, professional",
+        "negativePrompt": "no screens with readable text"
+      }
+    },
+    {
+      "slideType": "cta_final",
+      "title": "Build a brand people remember",
+      "content": "Use better tools to design, track, and improve your customer experience — link in bio.",
+      "backgroundImage": {
+        "descriptor": "Premium product packaging arranged under soft studio lighting",
+        "style": "high-end commercial product photography",
+        "mood": "aspirational, polished",
+        "negativePrompt": "no text, no logos, no clutter"
+      }
+    }
+  ]
+}
