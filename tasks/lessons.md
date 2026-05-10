@@ -10,3 +10,4 @@
 - Do not expose raw `.env` editing in the UI when structured key-specific inputs are requested; use explicit fields with masked inputs and show/hide toggles.
 - Avoid `multipart/form-data` for Drive `uploadType=multipart`; use a two-step flow (metadata create + media upload) to prevent Google parse errors.
 - If users provide a Drive folder name where a folder ID is expected, auto-resolve/create the folder and persist the resolved ID to `.env`.
+- When users request “upload individual images inside a named folder,” upload slide PNGs directly and create a Drive folder named after the output directory instead of zipping.

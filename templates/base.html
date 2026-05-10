@@ -29,5 +29,116 @@
 
       {% block content %}{% endblock %}
     </main>
+
+    <section id="job-runner" class="job-runner hidden" aria-live="polite">
+      <div class="job-runner-header">
+        <strong id="job-title">Running Task</strong>
+        <button id="job-close" class="btn" type="button">Hide</button>
+      </div>
+      <div class="job-progress-wrap">
+        <div id="job-progress-bar" class="job-progress-bar"></div>
+      </div>
+      <div id="job-progress-text" class="muted small">0%</div>
+      <pre id="job-logs" class="job-logs"></pre>
+    </section>
+
+    <script>
+      (() => {
+        const panel = document.getElementById("job-runner");
+        const titleEl = document.getElementById("job-title");
+        const barEl = document.getElementById("job-progress-bar");
+        const progressTextEl = document.getElementById("job-progress-text");
+        const logsEl = document.getElementById("job-logs");
+        const closeBtn = document.getElementById("job-close");
+        let pollTimer = null;
+        let currentJob = null;
+
+        const setProgress = (value) => {
+          const clamped = Math.max(0, Math.min(100, Number(value || 0)));
+          barEl.style.width = `${clamped}%`;
+          progressTextEl.textContent = `${clamped}%`;
+        };
+
+        const showPanel = (title) => {
+          titleEl.textContent = title || "Running Task";
+          setProgress(0);
+          logsEl.textContent = "";
+          panel.classList.remove("hidden");
+        };
+
+        const appendLogs = (lines) => {
+          if (!Array.isArray(lines)) return;
+          logsEl.textContent = lines.join("\n");
+          logsEl.scrollTop = logsEl.scrollHeight;
+        };
+
+        const stopPolling = () => {
+          if (pollTimer) {
+            clearInterval(pollTimer);
+            pollTimer = null;
+          }
+        };
+
+        const pollJob = async () => {
+          if (!currentJob) return;
+          try {
+            const response = await fetch(`/jobs/${currentJob}`);
+            if (!response.ok) return;
+            const job = await response.json();
+            setProgress(job.progress || 0);
+            appendLogs(job.logs || []);
+
+            if (job.status === "success") {
+              stopPolling();
+              if (job.result && job.result.redirect_url) {
+                window.location.href = job.result.redirect_url;
+              }
+            } else if (job.status === "error") {
+              stopPolling();
+              if (job.error) {
+                logsEl.textContent += `\nERROR: ${job.error}`;
+              }
+            }
+          } catch (_) {
+            // Ignore transient poll errors.
+          }
+        };
+
+        const startAsyncJob = async (form) => {
+          showPanel(form.dataset.jobTitle || "Running Task");
+          setProgress(2);
+          const formData = new FormData(form);
+          const response = await fetch(form.action, {
+            method: form.method || "POST",
+            body: formData,
+            headers: { "X-Async-Job": "1" },
+          });
+          if (!response.ok) {
+            logsEl.textContent = `Failed to start job: HTTP ${response.status}`;
+            return;
+          }
+          const payload = await response.json();
+          if (!payload.job_id) {
+            logsEl.textContent = "Failed to start async job.";
+            return;
+          }
+          currentJob = payload.job_id;
+          stopPolling();
+          pollTimer = setInterval(pollJob, 1000);
+          pollJob();
+        };
+
+        document.querySelectorAll("form.async-job").forEach((form) => {
+          form.addEventListener("submit", async (event) => {
+            event.preventDefault();
+            await startAsyncJob(form);
+          });
+        });
+
+        closeBtn?.addEventListener("click", () => {
+          panel.classList.add("hidden");
+        });
+      })();
+    </script>
   </body>
 </html>

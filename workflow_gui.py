@@ -1,16 +1,18 @@
 import json
+import mimetypes
 import os
 import secrets
 import re
 import shutil
 import subprocess
-import tempfile
 from urllib.parse import urlencode
 from pathlib import Path
 from typing import Any
+from threading import Lock, Thread
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import requests
-from flask import Flask, flash, redirect, render_template, request, send_from_directory, session, url_for
+from flask import Flask, flash, jsonify, redirect, render_template, request, send_from_directory, session, url_for
 from werkzeug.utils import secure_filename
 
 
@@ -43,6 +45,8 @@ SCRIPT_LINE_RE = re.compile(r"Wrote generated slideshow script to:\s*(.+)")
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev-secret-change-me")
+JOBS: dict[str, dict[str, Any]] = {}
+JOBS_LOCK = Lock()
 
 
 def ensure_dirs() -> None:
@@ -50,6 +54,56 @@ def ensure_dirs() -> None:
     SCRIPTS_DIR.mkdir(parents=True, exist_ok=True)
     OUTPUTS_DIR.mkdir(parents=True, exist_ok=True)
     PHOTOS_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def is_async_job_request() -> bool:
+    return request.headers.get("X-Async-Job") == "1"
+
+
+def create_job(title: str) -> str:
+    job_id = secrets.token_urlsafe(12)
+    with JOBS_LOCK:
+        JOBS[job_id] = {
+            "id": job_id,
+            "title": title,
+            "status": "queued",
+            "progress": 0,
+            "logs": [],
+            "error": "",
+            "result": {},
+        }
+    return job_id
+
+
+def update_job(job_id: str, **fields: Any) -> None:
+    with JOBS_LOCK:
+        if job_id not in JOBS:
+            return
+        JOBS[job_id].update(fields)
+
+
+def append_job_log(job_id: str, message: str) -> None:
+    clean = message.rstrip()
+    if not clean:
+        return
+    with JOBS_LOCK:
+        if job_id not in JOBS:
+            return
+        JOBS[job_id]["logs"].append(clean)
+        JOBS[job_id]["logs"] = JOBS[job_id]["logs"][-400:]
+
+
+def run_background_job(job_id: str, runner) -> None:
+    def _worker() -> None:
+        update_job(job_id, status="running")
+        try:
+            result = runner()
+            update_job(job_id, status="success", progress=100, result=result or {})
+        except Exception as exc:
+            append_job_log(job_id, f"ERROR: {exc}")
+            update_job(job_id, status="error", error=str(exc), progress=100)
+
+    Thread(target=_worker, daemon=True).start()
 
 
 def slugify(name: str) -> str:
@@ -184,7 +238,30 @@ def read_embedding_paths() -> set[str]:
     return paths
 
 
-def run_embed_new_photos() -> str:
+def run_command_stream(command: list[str], cwd: Path, on_line=None) -> str:
+    process = subprocess.Popen(
+        command,
+        cwd=str(cwd),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,
+    )
+    lines: list[str] = []
+    assert process.stdout is not None
+    for raw_line in process.stdout:
+        line = raw_line.rstrip("\n")
+        lines.append(line)
+        if on_line is not None:
+            on_line(line)
+    return_code = process.wait()
+    logs = "\n".join(lines)
+    if return_code != 0:
+        raise RuntimeError(logs.strip())
+    return logs
+
+
+def run_embed_new_photos(on_line=None) -> str:
     cmd = [
         os.environ.get("PYTHON_EXECUTABLE", "python"),
         str(EMBED_SCRIPT),
@@ -194,16 +271,7 @@ def run_embed_new_photos() -> str:
         str(EMBEDDINGS_JSON),
         "--incremental",
     ]
-    completed = subprocess.run(
-        cmd,
-        cwd=str(ROOT_DIR),
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    logs = (completed.stdout or "") + "\n" + (completed.stderr or "")
-    if completed.returncode != 0:
-        raise RuntimeError(logs.strip())
+    logs = run_command_stream(cmd, ROOT_DIR, on_line=on_line)
     return logs.strip()
 
 
@@ -213,21 +281,14 @@ def find_preview_image(output_dir: Path) -> str | None:
     return None
 
 
-def run_workflow(product_path: Path) -> tuple[str, Path | None, Path | None]:
+def run_workflow(product_path: Path, on_line=None) -> tuple[str, Path | None, Path | None]:
     cmd = [
         os.environ.get("PYTHON_EXECUTABLE", "python"),
         str(RUN_WORKFLOW_SCRIPT),
         "--product-md",
         str(product_path.relative_to(ROOT_DIR)),
     ]
-    completed = subprocess.run(
-        cmd,
-        cwd=str(ROOT_DIR),
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    logs = (completed.stdout or "") + "\n" + (completed.stderr or "")
+    logs = run_command_stream(cmd, ROOT_DIR, on_line=on_line)
 
     script_path: Path | None = None
     output_path: Path | None = None
@@ -242,8 +303,6 @@ def run_workflow(product_path: Path) -> tuple[str, Path | None, Path | None]:
         parsed = Path(output_match.group(1).strip())
         output_path = parsed if parsed.is_absolute() else (ROOT_DIR / parsed)
 
-    if completed.returncode != 0:
-        raise RuntimeError(logs.strip())
     return logs.strip(), script_path, output_path
 
 
@@ -269,7 +328,7 @@ def refresh_google_access_token(env_vars: dict[str, str]) -> str:
     return payload.get("access_token", "")
 
 
-def upload_output_to_google_drive(output_dir: Path) -> str:
+def upload_output_to_google_drive(output_dir: Path, on_progress=None) -> str:
     env_vars = load_env_vars()
     access_token = env_vars.get("GOOGLE_DRIVE_ACCESS_TOKEN", "")
     folder_id = env_vars.get("GOOGLE_DRIVE_FOLDER_ID", "").strip()
@@ -294,46 +353,112 @@ def upload_output_to_google_drive(output_dir: Path) -> str:
     if resolved_folder_id and resolved_folder_id != folder_id:
         upsert_env_vars(ENV_PATH, {"GOOGLE_DRIVE_FOLDER_ID": resolved_folder_id})
 
-    with tempfile.TemporaryDirectory() as temp_dir:
-        zip_base = Path(temp_dir) / output_dir.name
-        archive_file = shutil.make_archive(str(zip_base), "zip", root_dir=str(output_dir))
-        archive_path = Path(archive_file)
+    slide_files = sorted(output_dir.glob("slide*_final.png"))
+    if not slide_files:
+        raise RuntimeError(f"No slide images found in output folder: {output_dir.name}")
 
-        metadata: dict[str, Any] = {"name": archive_path.name, "mimeType": "application/zip"}
-        if resolved_folder_id:
-            metadata["parents"] = [resolved_folder_id]
+    destination_folder_id = create_drive_folder(
+        access_token=access_token,
+        folder_name=output_dir.name,
+        parent_folder_id=resolved_folder_id,
+    )
+    if on_progress is not None:
+        on_progress(5, f"Created destination folder: {output_dir.name}")
 
-        # Step 1: Create file metadata entry and get a file id.
-        create_resp = requests.post(
-            "https://www.googleapis.com/drive/v3/files?supportsAllDrives=true&fields=id",
-            headers=auth_headers,
-            json=metadata,
-            timeout=60,
+    total_files = len(slide_files)
+
+    def _upload_one(path: Path) -> str:
+        mime_type = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
+        upload_drive_file(
+            access_token=access_token,
+            file_name=path.name,
+            file_bytes=path.read_bytes(),
+            mime_type=mime_type,
+            parent_folder_id=destination_folder_id,
         )
-        if create_resp.status_code >= 400:
-            raise RuntimeError(
-                "Google Drive metadata create failed. "
-                f"{create_resp.status_code} {create_resp.reason}. Response: {create_resp.text[:1000]}"
-            )
+        return path.name
 
-        file_id = create_resp.json().get("id", "")
-        if not file_id:
-            raise RuntimeError(f"Google Drive create response missing file id: {create_resp.text[:1000]}")
+    uploaded_count = 0
+    worker_count = min(8, total_files)
+    with ThreadPoolExecutor(max_workers=worker_count) as executor:
+        futures = {executor.submit(_upload_one, slide_file): slide_file.name for slide_file in slide_files}
+        for future in as_completed(futures):
+            file_name = futures[future]
+            try:
+                _ = future.result()
+            except Exception as exc:
+                raise RuntimeError(f"Failed uploading {file_name}: {exc}") from exc
+            uploaded_count += 1
+            if on_progress is not None:
+                progress = 5 + int((uploaded_count / total_files) * 95)
+                on_progress(progress, f"Uploaded {uploaded_count}/{total_files}: {file_name}")
 
-        # Step 2: Upload zip bytes as media content for that file id.
-        media_resp = requests.patch(
-            f"https://www.googleapis.com/upload/drive/v3/files/{file_id}?uploadType=media&supportsAllDrives=true",
-            headers={**auth_headers, "Content-Type": "application/zip"},
-            data=archive_path.read_bytes(),
-            timeout=180,
+    return f"https://drive.google.com/drive/folders/{destination_folder_id} (uploaded {uploaded_count} images)"
+
+
+def upload_drive_file(
+    access_token: str,
+    file_name: str,
+    file_bytes: bytes,
+    mime_type: str,
+    parent_folder_id: str,
+) -> str:
+    auth_headers = {"Authorization": f"Bearer {access_token}"}
+    metadata: dict[str, Any] = {"name": file_name}
+    if parent_folder_id:
+        metadata["parents"] = [parent_folder_id]
+
+    create_resp = requests.post(
+        "https://www.googleapis.com/drive/v3/files?supportsAllDrives=true&fields=id",
+        headers=auth_headers,
+        json=metadata,
+        timeout=60,
+    )
+    if create_resp.status_code >= 400:
+        raise RuntimeError(
+            "Google Drive file create failed. "
+            f"{create_resp.status_code} {create_resp.reason}. Response: {create_resp.text[:1000]}"
         )
-        if media_resp.status_code >= 400:
-            raise RuntimeError(
-                "Google Drive media upload failed. "
-                f"{media_resp.status_code} {media_resp.reason}. Response: {media_resp.text[:1000]}"
-            )
 
-        return f"https://drive.google.com/file/d/{file_id}/view"
+    file_id = create_resp.json().get("id", "")
+    if not file_id:
+        raise RuntimeError(f"Google Drive file create returned no id: {create_resp.text[:1000]}")
+
+    media_resp = requests.patch(
+        f"https://www.googleapis.com/upload/drive/v3/files/{file_id}?uploadType=media&supportsAllDrives=true",
+        headers={**auth_headers, "Content-Type": mime_type},
+        data=file_bytes,
+        timeout=180,
+    )
+    if media_resp.status_code >= 400:
+        raise RuntimeError(
+            "Google Drive media upload failed. "
+            f"{media_resp.status_code} {media_resp.reason}. Response: {media_resp.text[:1000]}"
+        )
+    return file_id
+
+
+def create_drive_folder(access_token: str, folder_name: str, parent_folder_id: str = "") -> str:
+    auth_headers = {"Authorization": f"Bearer {access_token}"}
+    metadata: dict[str, Any] = {"name": folder_name, "mimeType": "application/vnd.google-apps.folder"}
+    if parent_folder_id:
+        metadata["parents"] = [parent_folder_id]
+
+    create = requests.post(
+        "https://www.googleapis.com/drive/v3/files?supportsAllDrives=true&fields=id,name",
+        headers=auth_headers,
+        json=metadata,
+        timeout=30,
+    )
+    if create.status_code >= 400:
+        raise RuntimeError(
+            "Failed creating Drive folder. "
+            f"{create.status_code} {create.reason}. Response: {create.text[:800]}"
+        )
+    new_id = str(create.json().get("id", "")).strip()
+    if not new_id:
+        raise RuntimeError(f"Drive folder creation returned no id: {create.text[:800]}")
+    return new_id
 
 
 def resolve_or_create_folder_id(access_token: str, folder_id: str, folder_name: str) -> str:
@@ -476,6 +601,34 @@ def photos_upload() -> str:
 
 @app.route("/photos/embed-new", methods=["POST"])
 def photos_embed_new() -> str:
+    if is_async_job_request():
+        job_id = create_job("Embed New Photos")
+
+        photos = list_photos()
+        embedded_paths = read_embedding_paths()
+        total_new = sum(1 for photo in photos if photo.relative_to(PHOTOS_DIR).as_posix() not in embedded_paths)
+
+        def _runner() -> dict[str, Any]:
+            update_job(job_id, progress=3)
+            done = 0
+
+            def _on_line(line: str) -> None:
+                nonlocal done
+                append_job_log(job_id, line)
+                if line.startswith("Embedded "):
+                    done += 1
+                    if total_new > 0:
+                        progress = 5 + int((done / total_new) * 90)
+                        update_job(job_id, progress=min(progress, 95))
+
+            logs = run_embed_new_photos(on_line=_on_line)
+            append_job_log(job_id, logs)
+            update_job(job_id, progress=100)
+            return {"redirect_url": url_for("home")}
+
+        run_background_job(job_id, _runner)
+        return jsonify({"job_id": job_id})
+
     try:
         logs = run_embed_new_photos()
         flash("Embedding completed.", "success")
@@ -535,6 +688,46 @@ def generate_from_product(file_name: str) -> str:
     if not product_path.exists():
         flash(f"Product not found: {file_name}", "error")
         return redirect(url_for("home"))
+
+    if is_async_job_request():
+        job_id = create_job(f"Generate Output: {file_name}")
+
+        def _runner() -> dict[str, Any]:
+            current_progress = 5
+            update_job(job_id, progress=current_progress)
+            rendered_count = 0
+
+            def _on_line(line: str) -> None:
+                nonlocal rendered_count, current_progress
+                append_job_log(job_id, line)
+                low = line.lower()
+                if "step 1/2" in low:
+                    current_progress = max(current_progress, 10)
+                    update_job(job_id, progress=current_progress)
+                elif "wrote generated slideshow script to:" in low:
+                    current_progress = max(current_progress, 40)
+                    update_job(job_id, progress=current_progress)
+                elif "step 2/2" in low:
+                    current_progress = max(current_progress, 50)
+                    update_job(job_id, progress=current_progress)
+                elif "rendered slide" in low:
+                    rendered_count += 1
+                    current_progress = min(95, 50 + rendered_count * 6)
+                    update_job(job_id, progress=current_progress)
+
+            logs, script_path, output_path = run_workflow(product_path, on_line=_on_line)
+            append_job_log(job_id, logs)
+
+            result: dict[str, Any] = {"redirect_url": url_for("home")}
+            if output_path is not None and output_path.exists():
+                result["redirect_url"] = url_for("output_view", output_name=output_path.name)
+            if script_path is not None:
+                result["script_name"] = script_path.name
+            return result
+
+        run_background_job(job_id, _runner)
+        return jsonify({"job_id": job_id})
+
     try:
         logs, script_path, output_path = run_workflow(product_path)
         flash("Generation completed successfully.", "success")
@@ -578,12 +771,39 @@ def output_upload_gdrive(output_name: str) -> str:
     if not path.exists() or not path.is_dir():
         flash("Output folder not found.", "error")
         return redirect(url_for("home"))
+
+    if is_async_job_request():
+        job_id = create_job(f"Upload to Drive: {output_name}")
+
+        def _runner() -> dict[str, Any]:
+            update_job(job_id, progress=3)
+
+            def _on_progress(progress: int, message: str) -> None:
+                update_job(job_id, progress=max(3, min(99, progress)))
+                append_job_log(job_id, message)
+
+            drive_link = upload_output_to_google_drive(path, on_progress=_on_progress)
+            append_job_log(job_id, f"Uploaded successfully: {drive_link}")
+            return {"redirect_url": url_for("output_view", output_name=output_name), "drive_link": drive_link}
+
+        run_background_job(job_id, _runner)
+        return jsonify({"job_id": job_id})
+
     try:
         drive_link = upload_output_to_google_drive(path)
         flash(f"Uploaded to Google Drive: {drive_link}", "success")
     except Exception as exc:
         flash(f"Google Drive upload failed: {exc}", "error")
     return redirect(url_for("output_view", output_name=output_name))
+
+
+@app.route("/jobs/<job_id>")
+def job_status(job_id: str):
+    with JOBS_LOCK:
+        job = JOBS.get(job_id)
+    if job is None:
+        return jsonify({"error": "job not found"}), 404
+    return jsonify(job)
 
 
 @app.route("/settings/env", methods=["GET", "POST"])

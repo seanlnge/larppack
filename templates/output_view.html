@@ -4,7 +4,7 @@
   <h2>Output: {{ output_name }}</h2>
   <div class="actions">
     <a class="btn" href="{{ url_for('home') }}">Back</a>
-    <form method="post" action="{{ url_for('output_upload_gdrive', output_name=output_name) }}">
+    <form method="post" action="{{ url_for('output_upload_gdrive', output_name=output_name) }}" class="async-job" data-job-title="Uploading to Google Drive">
       <button class="btn primary" type="submit">Save to Google Drive</button>
     </form>
   </div>

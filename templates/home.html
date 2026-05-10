@@ -26,7 +26,7 @@
       Embedded: <strong>{{ embedded_count }}</strong>
     </p>
     <div class="actions">
-      <form method="post" action="{{ url_for('photos_embed_new') }}">
+      <form method="post" action="{{ url_for('photos_embed_new') }}" class="async-job" data-job-title="Embedding Photos">
         <button class="btn primary" type="submit">Embed New Photos</button>
       </form>
       <form method="post" action="{{ url_for('photos_upload') }}" enctype="multipart/form-data">
@@ -51,7 +51,7 @@
           </div>
           <div class="actions">
             <a class="btn" href="{{ url_for('product_edit', file_name=product.name) }}">Edit</a>
-            <form method="post" action="{{ url_for('generate_from_product', file_name=product.name) }}">
+            <form method="post" action="{{ url_for('generate_from_product', file_name=product.name) }}" class="async-job" data-job-title="Generating Output">
               <button class="btn primary" type="submit">Generate Output</button>
             </form>
             <form method="post" action="{{ url_for('product_delete', file_name=product.name) }}" onsubmit="return confirm('Delete this product?')">

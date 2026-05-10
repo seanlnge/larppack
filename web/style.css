@@ -117,6 +117,7 @@ main {
 
 .muted { color: #9ea9d4; }
 .mt-12 { margin-top: 12px; }
+.hidden { display: none !important; }
 
 .messages {
   margin-bottom: 16px;
@@ -309,6 +310,49 @@ pre {
 }
 
 a { color: #9ec3ff; }
+
+.job-runner {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  width: min(560px, calc(100vw - 36px));
+  background: rgba(13, 19, 42, 0.98);
+  border: 1px solid #3a4b84;
+  border-radius: 12px;
+  padding: 12px;
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.45);
+  z-index: 1000;
+}
+
+.job-runner-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.job-progress-wrap {
+  width: 100%;
+  height: 10px;
+  background: #0b1024;
+  border: 1px solid #2f3c6f;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.job-progress-bar {
+  height: 100%;
+  width: 0;
+  background: linear-gradient(90deg, #2b66ea, #6b90ff);
+  transition: width 0.2s ease;
+}
+
+.job-logs {
+  margin-top: 8px;
+  height: 190px;
+  overflow: auto;
+  white-space: pre-wrap;
+}
 
 @media (max-width: 1024px) {
   .dashboard-grid {
