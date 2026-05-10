@@ -6,6 +6,13 @@
     Update environment variables used by this workflow.
     For Google Drive uploads, configure API key + OAuth token values here.
   </p>
+  <p>
+    Google OAuth redirect/callback URI:
+    <code>http://127.0.0.1:5050/auth/google/callback</code>
+  </p>
+  <div class="actions">
+    <a class="btn primary" href="{{ url_for('google_auth_start') }}">Connect Google Drive</a>
+  </div>
   <form method="post" class="stack">
     <textarea name="content" rows="24" required>{{ content }}</textarea>
     <div class="actions">

@@ -7,12 +7,12 @@
     <link rel="stylesheet" href="{{ url_for('serve_file', relative_path='web/style.css') }}" />
   </head>
   <body>
-    <header>
-      <h1>TikTokGen Workflow GUI</h1>
-      <nav>
-        <a href="{{ url_for('home') }}">Home</a>
-        <a href="{{ url_for('product_new') }}">New Product</a>
-        <a href="{{ url_for('settings_env') }}">.env Settings</a>
+    <header class="topbar">
+      <div class="brand">TikTokGen</div>
+      <nav class="topnav">
+        <a class="{{ 'active' if request.endpoint == 'home' else '' }}" href="{{ url_for('home') }}">Home</a>
+        <a class="{{ 'active' if request.endpoint == 'product_new' else '' }}" href="{{ url_for('product_new') }}">New Product</a>
+        <a class="{{ 'active' if request.endpoint == 'settings_env' else '' }}" href="{{ url_for('settings_env') }}">.env Settings</a>
       </nav>
     </header>
 

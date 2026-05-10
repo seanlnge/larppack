@@ -1,25 +1,47 @@
 {% extends "base.html" %}
 {% block content %}
-<section class="panel">
-  <h2>Photos & Embeddings</h2>
-  <p>
-    Total photos: <strong>{{ photo_count }}</strong> |
-    Embedded paths tracked: <strong>{{ embedded_count }}</strong> |
-    New photos to embed: <strong>{{ new_photo_count }}</strong>
-  </p>
-  <div class="actions">
-    <form method="post" action="{{ url_for('photos_embed_new') }}">
-      <button class="btn primary" type="submit">Embed New Photos</button>
-    </form>
-    <form method="post" action="{{ url_for('photos_upload') }}" enctype="multipart/form-data">
-      <input type="file" name="photos" accept="image/*" multiple required />
-      <button class="btn" type="submit">Add New Photos</button>
-    </form>
-  </div>
-</section>
+<div class="dashboard-grid">
+  <section class="panel panel-meta">
+    <div class="panel-title-row">
+      <h2>Google Drive</h2>
+      <span class="chip {{ 'ok' if drive_status.connected else 'warn' }}">
+        {{ 'Connected' if drive_status.connected else 'Not Connected' }}
+      </span>
+    </div>
+    <p class="muted">OAuth redirect URI</p>
+    <code>{{ drive_status.redirect_uri }}</code>
+    <div class="actions mt-12">
+      <a class="btn primary" href="{{ url_for('google_auth_start') }}">Connect / Reconnect Google Drive</a>
+      <a class="btn" href="{{ url_for('settings_env') }}">Open .env Settings</a>
+    </div>
+  </section>
+
+  <section class="panel panel-meta">
+    <div class="panel-title-row">
+      <h2>Photos & Embeddings</h2>
+      <span class="chip">{{ new_photo_count }} New</span>
+    </div>
+    <p class="muted">
+      Total photos: <strong>{{ photo_count }}</strong> |
+      Embedded: <strong>{{ embedded_count }}</strong>
+    </p>
+    <div class="actions">
+      <form method="post" action="{{ url_for('photos_embed_new') }}">
+        <button class="btn primary" type="submit">Embed New Photos</button>
+      </form>
+      <form method="post" action="{{ url_for('photos_upload') }}" enctype="multipart/form-data">
+        <input type="file" name="photos" accept="image/*" multiple required />
+        <button class="btn" type="submit">Add New Photos</button>
+      </form>
+    </div>
+  </section>
+</div>
 
 <section class="panel">
-  <h2>Product Ideas</h2>
+  <div class="panel-title-row">
+    <h2>Product Ideas</h2>
+    <span class="chip">{{ products|length }} Files</span>
+  </div>
   {% if products %}
     <ul class="list">
       {% for product in products %}
@@ -44,43 +66,49 @@
   {% endif %}
 </section>
 
-<section class="panel">
-  <h2>Generated Scripts</h2>
-  {% if scripts %}
-    <ul class="list compact">
-      {% for script in scripts %}
-        <li>
-          <a href="{{ url_for('serve_file', relative_path='scripts/' ~ script.name) }}" target="_blank">{{ script.name }}</a>
-        </li>
-      {% endfor %}
-    </ul>
-  {% else %}
-    <p>No generated script JSON files yet.</p>
-  {% endif %}
-</section>
-
-<section class="panel">
-  <h2>Outputs</h2>
-  {% if output_dirs %}
-    <div class="output-grid">
-      {% for out in output_dirs %}
-        <article class="output-card">
-          <h3>{{ out.name }}</h3>
-          <p>{{ out.slide_count }} slides</p>
-          {% if out.preview %}
-            <img src="{{ url_for('serve_file', relative_path=out.preview) }}" alt="Preview">
-          {% endif %}
-          <div class="actions">
-            <a class="btn" href="{{ url_for('output_view', output_name=out.name) }}">View</a>
-            <form method="post" action="{{ url_for('output_delete', output_name=out.name) }}" onsubmit="return confirm('Delete this output folder?')">
-              <button class="btn danger" type="submit">Delete</button>
-            </form>
-          </div>
-        </article>
-      {% endfor %}
+<div class="dashboard-grid two-col">
+  <section class="panel">
+    <div class="panel-title-row">
+      <h2>Generated Scripts</h2>
     </div>
-  {% else %}
-    <p>No output folders found in <code>outputs/</code>.</p>
-  {% endif %}
-</section>
+    {% if scripts %}
+      <ul class="list compact">
+        {% for script in scripts %}
+          <li>
+            <a href="{{ url_for('serve_file', relative_path='scripts/' ~ script.name) }}" target="_blank">{{ script.name }}</a>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="muted">No generated script JSON files yet.</p>
+    {% endif %}
+  </section>
+
+  <section class="panel">
+    <div class="panel-title-row">
+      <h2>Recent Outputs</h2>
+    </div>
+    {% if output_dirs %}
+      <div class="output-grid">
+        {% for out in output_dirs %}
+          <article class="output-card">
+            <h3>{{ out.name }}</h3>
+            <p class="muted">{{ out.slide_count }} slides</p>
+            {% if out.preview %}
+              <img src="{{ url_for('serve_file', relative_path=out.preview) }}" alt="Preview">
+            {% endif %}
+            <div class="actions">
+              <a class="btn" href="{{ url_for('output_view', output_name=out.name) }}">View</a>
+              <form method="post" action="{{ url_for('output_delete', output_name=out.name) }}" onsubmit="return confirm('Delete this output folder?')">
+                <button class="btn danger" type="submit">Delete</button>
+              </form>
+            </div>
+          </article>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p class="muted">No output folders found in <code>outputs/</code>.</p>
+    {% endif %}
+  </section>
+</div>
 {% endblock %}

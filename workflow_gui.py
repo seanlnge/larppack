@@ -1,14 +1,16 @@
 import json
 import os
+import secrets
 import re
 import shutil
 import subprocess
 import tempfile
+from urllib.parse import urlencode
 from pathlib import Path
 from typing import Any
 
 import requests
-from flask import Flask, flash, redirect, render_template, request, send_from_directory, url_for
+from flask import Flask, flash, redirect, render_template, request, send_from_directory, session, url_for
 from werkzeug.utils import secure_filename
 
 
@@ -21,6 +23,9 @@ ENV_PATH = ROOT_DIR / ".env"
 RUN_WORKFLOW_SCRIPT = ROOT_DIR / "run_product_to_slides.py"
 EMBED_SCRIPT = ROOT_DIR / "embed_larppack_clip.py"
 EMBEDDINGS_JSON = ROOT_DIR / "larppack_embeddings.json"
+GOOGLE_OAUTH_SCOPE = "https://www.googleapis.com/auth/drive.file"
+GOOGLE_AUTH_BASE_URL = "https://accounts.google.com/o/oauth2/v2/auth"
+GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
 
 OUTPUT_LINE_RE = re.compile(r"Done\. Generated \d+ slides in (.+)")
 SCRIPT_LINE_RE = re.compile(r"Wrote generated slideshow script to:\s*(.+)")
@@ -63,13 +68,69 @@ def parse_env_text(content: str) -> dict[str, str]:
     return result
 
 
+def upsert_env_vars(path: Path, updates: dict[str, str]) -> None:
+    existing_lines = path.read_text(encoding="utf-8").splitlines() if path.exists() else []
+    key_to_idx: dict[str, int] = {}
+
+    for idx, line in enumerate(existing_lines):
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#") or "=" not in stripped:
+            continue
+        key = stripped.split("=", 1)[0].strip()
+        if key:
+            key_to_idx[key] = idx
+
+    for key, value in updates.items():
+        safe_val = value.replace("\n", " ").strip()
+        rendered = f'{key}="{safe_val}"'
+        if key in key_to_idx:
+            existing_lines[key_to_idx[key]] = rendered
+        else:
+            existing_lines.append(rendered)
+
+    path.write_text("\n".join(existing_lines).strip() + "\n", encoding="utf-8")
+
+
 def load_env_vars() -> dict[str, str]:
     vars_from_file = parse_env_text(read_text(ENV_PATH))
     merged = dict(vars_from_file)
-    for key in ("OPENAI_API_KEY", "GOOGLE_DRIVE_API_KEY", "GOOGLE_DRIVE_ACCESS_TOKEN"):
+    for key in (
+        "OPENAI_API_KEY",
+        "GOOGLE_DRIVE_API_KEY",
+        "GOOGLE_DRIVE_ACCESS_TOKEN",
+        "GOOGLE_DRIVE_REFRESH_TOKEN",
+        "GOOGLE_DRIVE_OAUTH_CLIENT_ID",
+        "GOOGLE_DRIVE_OAUTH_CLIENT_SECRET",
+        "GOOGLE_DRIVE_REDIRECT_URI",
+    ):
         if key in os.environ:
             merged[key] = os.environ[key]
     return merged
+
+
+def get_drive_connection_status() -> dict[str, Any]:
+    env_vars = load_env_vars()
+    has_client_id = bool(env_vars.get("GOOGLE_DRIVE_OAUTH_CLIENT_ID") or env_vars.get("GOOGLE_DRIVE_CLIENT_ID"))
+    has_client_secret = bool(env_vars.get("GOOGLE_DRIVE_OAUTH_CLIENT_SECRET") or env_vars.get("GOOGLE_DRIVE_CLIENT_SECRET"))
+    has_refresh_token = bool(env_vars.get("GOOGLE_DRIVE_REFRESH_TOKEN"))
+    has_access_token = bool(env_vars.get("GOOGLE_DRIVE_ACCESS_TOKEN"))
+    connected = has_access_token or (has_client_id and has_client_secret and has_refresh_token)
+    return {
+        "connected": connected,
+        "has_client_id": has_client_id,
+        "has_client_secret": has_client_secret,
+        "has_refresh_token": has_refresh_token,
+        "has_access_token": has_access_token,
+        "redirect_uri": env_vars.get("GOOGLE_DRIVE_REDIRECT_URI", "http://127.0.0.1:5050/auth/google/callback"),
+    }
+
+
+def get_google_oauth_config() -> tuple[str, str, str]:
+    env_vars = load_env_vars()
+    client_id = env_vars.get("GOOGLE_DRIVE_OAUTH_CLIENT_ID") or env_vars.get("GOOGLE_DRIVE_CLIENT_ID", "")
+    client_secret = env_vars.get("GOOGLE_DRIVE_OAUTH_CLIENT_SECRET") or env_vars.get("GOOGLE_DRIVE_CLIENT_SECRET", "")
+    redirect_uri = env_vars.get("GOOGLE_DRIVE_REDIRECT_URI", "http://127.0.0.1:5050/auth/google/callback")
+    return client_id.strip(), client_secret.strip(), redirect_uri.strip()
 
 
 def list_products() -> list[Path]:
@@ -177,13 +238,13 @@ def run_workflow(product_path: Path) -> tuple[str, Path | None, Path | None]:
 
 def refresh_google_access_token(env_vars: dict[str, str]) -> str:
     refresh_token = env_vars.get("GOOGLE_DRIVE_REFRESH_TOKEN", "")
-    client_id = env_vars.get("GOOGLE_DRIVE_CLIENT_ID", "")
-    client_secret = env_vars.get("GOOGLE_DRIVE_CLIENT_SECRET", "")
+    client_id = env_vars.get("GOOGLE_DRIVE_OAUTH_CLIENT_ID") or env_vars.get("GOOGLE_DRIVE_CLIENT_ID", "")
+    client_secret = env_vars.get("GOOGLE_DRIVE_OAUTH_CLIENT_SECRET") or env_vars.get("GOOGLE_DRIVE_CLIENT_SECRET", "")
     if not (refresh_token and client_id and client_secret):
         return ""
 
     response = requests.post(
-        "https://oauth2.googleapis.com/token",
+        GOOGLE_TOKEN_URL,
         data={
             "client_id": client_id,
             "client_secret": client_secret,
@@ -199,19 +260,16 @@ def refresh_google_access_token(env_vars: dict[str, str]) -> str:
 
 def upload_output_to_google_drive(output_dir: Path) -> str:
     env_vars = load_env_vars()
-    api_key = env_vars.get("GOOGLE_DRIVE_API_KEY", "")
     access_token = env_vars.get("GOOGLE_DRIVE_ACCESS_TOKEN", "")
     folder_id = env_vars.get("GOOGLE_DRIVE_FOLDER_ID", "")
 
     if not access_token:
         access_token = refresh_google_access_token(env_vars)
 
-    if not api_key:
-        raise RuntimeError("Missing GOOGLE_DRIVE_API_KEY in .env.")
     if not access_token:
         raise RuntimeError(
             "Missing Google auth token. Set GOOGLE_DRIVE_ACCESS_TOKEN, or provide "
-            "GOOGLE_DRIVE_REFRESH_TOKEN + GOOGLE_DRIVE_CLIENT_ID + GOOGLE_DRIVE_CLIENT_SECRET."
+            "GOOGLE_DRIVE_REFRESH_TOKEN + GOOGLE_DRIVE_OAUTH_CLIENT_ID + GOOGLE_DRIVE_OAUTH_CLIENT_SECRET."
         )
 
     with tempfile.TemporaryDirectory() as temp_dir:
@@ -229,7 +287,7 @@ def upload_output_to_google_drive(output_dir: Path) -> str:
         }
 
         response = requests.post(
-            f"https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&key={api_key}",
+            "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart",
             headers={"Authorization": f"Bearer {access_token}"},
             files=multipart,
             timeout=120,
@@ -272,6 +330,7 @@ def home() -> str:
         photo_count=len(photos),
         embedded_count=len(embedded_paths),
         new_photo_count=new_photo_count,
+        drive_status=get_drive_connection_status(),
     )
 
 
@@ -428,6 +487,82 @@ def settings_env() -> str:
         flash(".env saved. Restart the app if you changed runtime-sensitive variables.", "success")
         return redirect(url_for("settings_env"))
     return render_template("env_settings.html", content=read_text(ENV_PATH))
+
+
+@app.route("/auth/google/start")
+def google_auth_start() -> str:
+    client_id, _, redirect_uri = get_google_oauth_config()
+    if not client_id:
+        flash("Missing GOOGLE_DRIVE_OAUTH_CLIENT_ID in .env.", "error")
+        return redirect(url_for("settings_env"))
+
+    state = secrets.token_urlsafe(24)
+    session["google_oauth_state"] = state
+    params = {
+        "client_id": client_id,
+        "redirect_uri": redirect_uri,
+        "response_type": "code",
+        "scope": GOOGLE_OAUTH_SCOPE,
+        "access_type": "offline",
+        "prompt": "consent",
+        "include_granted_scopes": "true",
+        "state": state,
+    }
+    return redirect(f"{GOOGLE_AUTH_BASE_URL}?{urlencode(params)}")
+
+
+@app.route("/auth/google/callback")
+def google_auth_callback() -> str:
+    saved_state = session.get("google_oauth_state")
+    state = request.args.get("state", "")
+    if not saved_state or state != saved_state:
+        flash("Invalid OAuth state. Please try connecting Google Drive again.", "error")
+        return redirect(url_for("settings_env"))
+
+    if request.args.get("error"):
+        flash(f"Google OAuth error: {request.args.get('error')}", "error")
+        return redirect(url_for("settings_env"))
+
+    code = request.args.get("code", "")
+    if not code:
+        flash("Google OAuth callback did not include an authorization code.", "error")
+        return redirect(url_for("settings_env"))
+
+    client_id, client_secret, redirect_uri = get_google_oauth_config()
+    if not client_id or not client_secret:
+        flash("Missing GOOGLE_DRIVE_OAUTH_CLIENT_ID or GOOGLE_DRIVE_OAUTH_CLIENT_SECRET in .env.", "error")
+        return redirect(url_for("settings_env"))
+
+    token_resp = requests.post(
+        GOOGLE_TOKEN_URL,
+        data={
+            "client_id": client_id,
+            "client_secret": client_secret,
+            "code": code,
+            "grant_type": "authorization_code",
+            "redirect_uri": redirect_uri,
+        },
+        timeout=30,
+    )
+    if token_resp.status_code >= 400:
+        flash(f"Token exchange failed: {token_resp.text}", "error")
+        return redirect(url_for("settings_env"))
+
+    payload = token_resp.json()
+    access_token = payload.get("access_token", "")
+    refresh_token = payload.get("refresh_token", "")
+    updates: dict[str, str] = {}
+    if access_token:
+        updates["GOOGLE_DRIVE_ACCESS_TOKEN"] = access_token
+    if refresh_token:
+        updates["GOOGLE_DRIVE_REFRESH_TOKEN"] = refresh_token
+
+    if updates:
+        upsert_env_vars(ENV_PATH, updates)
+        flash("Google Drive connected. Tokens saved to .env.", "success")
+    else:
+        flash("OAuth completed but no tokens were returned.", "error")
+    return redirect(url_for("settings_env"))
 
 
 @app.route("/files/<path:relative_path>")

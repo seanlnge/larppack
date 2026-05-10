@@ -1,3 +1,11 @@
 .env
-.outputs/*
+outputs/
+scripts/*.json
+products/*.md
+!products/template_product.md
 larppack_embeddings.json
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.zip
