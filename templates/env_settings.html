@@ -1,10 +1,10 @@
 {% extends "base.html" %}
 {% block content %}
 <section class="panel">
-  <h2>.env Settings</h2>
+  <h2>Credentials & Keys</h2>
   <p>
-    Update environment variables used by this workflow.
-    For Google Drive uploads, configure API key + OAuth token values here.
+    Set credentials individually instead of editing raw <code>.env</code> text.
+    Leave a field blank to keep its current value unchanged.
   </p>
   <p>
     Google OAuth redirect/callback URI:
@@ -14,11 +14,45 @@
     <a class="btn primary" href="{{ url_for('google_auth_start') }}">Connect Google Drive</a>
   </div>
   <form method="post" class="stack">
-    <textarea name="content" rows="24" required>{{ content }}</textarea>
+    <div class="field-grid">
+      {% for field in fields %}
+        <label class="field">
+          <span>{{ field.label }}</span>
+          <span class="muted small">Status: {{ "Configured" if field.configured else "Not set" }}</span>
+          <div class="secret-input-row">
+            <input
+              id="field_{{ loop.index }}"
+              type="{{ 'password' if field.is_secret else 'text' }}"
+              name="{{ field.key }}"
+              value="{{ field.default_value }}"
+              placeholder="{{ field.placeholder }}"
+            />
+            {% if field.is_secret %}
+              <button class="btn toggle-btn" type="button" data-target="field_{{ loop.index }}">Show</button>
+            {% endif %}
+          </div>
+        </label>
+      {% endfor %}
+    </div>
     <div class="actions">
-      <button class="btn primary" type="submit">Save .env</button>
+      <button class="btn primary" type="submit">Save Settings</button>
       <a class="btn" href="{{ url_for('home') }}">Back</a>
     </div>
   </form>
 </section>
+<script>
+  for (const btn of document.querySelectorAll(".toggle-btn")) {
+    btn.addEventListener("click", () => {
+      const target = document.getElementById(btn.dataset.target);
+      if (!target) return;
+      if (target.type === "password") {
+        target.type = "text";
+        btn.textContent = "Hide";
+      } else {
+        target.type = "password";
+        btn.textContent = "Show";
+      }
+    });
+  }
+</script>
 {% endblock %}

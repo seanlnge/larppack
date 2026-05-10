@@ -26,6 +26,16 @@ EMBEDDINGS_JSON = ROOT_DIR / "larppack_embeddings.json"
 GOOGLE_OAUTH_SCOPE = "https://www.googleapis.com/auth/drive.file"
 GOOGLE_AUTH_BASE_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
+SETTINGS_FIELDS = [
+    ("OPENAI_API_KEY", "OpenAI API Key", True),
+    ("GOOGLE_DRIVE_API_KEY", "Google Drive API Key (optional)", True),
+    ("GOOGLE_DRIVE_OAUTH_CLIENT_ID", "Google Drive OAuth Client ID", True),
+    ("GOOGLE_DRIVE_OAUTH_CLIENT_SECRET", "Google Drive OAuth Client Secret", True),
+    ("GOOGLE_DRIVE_ACCESS_TOKEN", "Google Drive Access Token", True),
+    ("GOOGLE_DRIVE_REFRESH_TOKEN", "Google Drive Refresh Token", True),
+    ("GOOGLE_DRIVE_REDIRECT_URI", "Google Drive Redirect URI", False),
+    ("GOOGLE_DRIVE_FOLDER_ID", "Google Drive Folder ID (optional)", False),
+]
 
 OUTPUT_LINE_RE = re.compile(r"Done\. Generated \d+ slides in (.+)")
 SCRIPT_LINE_RE = re.compile(r"Wrote generated slideshow script to:\s*(.+)")
@@ -286,18 +296,42 @@ def upload_output_to_google_drive(output_dir: Path) -> str:
             "file": (archive_path.name, archive_path.read_bytes(), "application/zip"),
         }
 
-        response = requests.post(
+        upload_urls = [
             "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart",
-            headers={"Authorization": f"Bearer {access_token}"},
-            files=multipart,
-            timeout=120,
+            "https://content.googleapis.com/upload/drive/v3/files?uploadType=multipart",
+            "https://www.googleapis.com/drive/v3/files?uploadType=multipart",
+        ]
+
+        last_error = ""
+        for upload_url in upload_urls:
+            response = requests.post(
+                upload_url,
+                headers={"Authorization": f"Bearer {access_token}"},
+                files=multipart,
+                timeout=120,
+            )
+
+            if response.status_code < 400:
+                file_payload = response.json()
+                file_id = file_payload.get("id", "")
+                if not file_id:
+                    raise RuntimeError(f"Upload succeeded but no file id returned: {file_payload}")
+                return f"https://drive.google.com/file/d/{file_id}/view"
+
+            body_preview = response.text[:1000]
+            last_error = (
+                f"{response.status_code} {response.reason} at {upload_url}. "
+                f"Response: {body_preview}"
+            )
+            # Keep trying alternates on 404, otherwise stop immediately.
+            if response.status_code != 404:
+                break
+
+        raise RuntimeError(
+            "Google Drive upload failed. "
+            "Confirm Drive API is enabled and OAuth app is configured correctly. "
+            f"Last error: {last_error}"
         )
-        response.raise_for_status()
-        file_payload = response.json()
-        file_id = file_payload.get("id", "")
-        if not file_id:
-            raise RuntimeError(f"Upload succeeded but no file id returned: {file_payload}")
-        return f"https://drive.google.com/file/d/{file_id}/view"
 
 
 @app.route("/")
@@ -481,12 +515,36 @@ def output_upload_gdrive(output_name: str) -> str:
 
 @app.route("/settings/env", methods=["GET", "POST"])
 def settings_env() -> str:
+    env_vars = load_env_vars()
     if request.method == "POST":
-        content = request.form.get("content", "")
-        write_text(ENV_PATH, content.strip() + "\n")
-        flash(".env saved. Restart the app if you changed runtime-sensitive variables.", "success")
+        updates: dict[str, str] = {}
+        for key, _, _ in SETTINGS_FIELDS:
+            value = request.form.get(key, "").strip()
+            if value:
+                updates[key] = value
+
+        if updates:
+            upsert_env_vars(ENV_PATH, updates)
+            flash("Settings saved. Empty fields are left unchanged.", "success")
+        else:
+            flash("No changes submitted.", "info")
         return redirect(url_for("settings_env"))
-    return render_template("env_settings.html", content=read_text(ENV_PATH))
+
+    field_rows: list[dict[str, Any]] = []
+    for key, label, is_secret in SETTINGS_FIELDS:
+        current = env_vars.get(key, "")
+        field_rows.append(
+            {
+                "key": key,
+                "label": label,
+                "is_secret": is_secret,
+                "configured": bool(current),
+                "default_value": current if not is_secret else "",
+                "placeholder": "Configured (leave blank to keep current)" if current else "Not set",
+            }
+        )
+
+    return render_template("env_settings.html", fields=field_rows)
 
 
 @app.route("/auth/google/start")

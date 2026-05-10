@@ -207,6 +207,31 @@ main {
   gap: 12px;
 }
 
+.field-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.field {
+  display: grid;
+  gap: 6px;
+}
+
+.small {
+  font-size: 12px;
+}
+
+.secret-input-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.toggle-btn {
+  min-width: 68px;
+}
+
 textarea,
 input[type="text"] {
   width: 100%;
