@@ -210,6 +210,35 @@ def list_output_dirs() -> list[Path]:
     return sorted([p for p in OUTPUTS_DIR.iterdir() if p.is_dir()], key=lambda p: p.stat().st_mtime, reverse=True)
 
 
+def humanize_slug(name: str) -> str:
+    cleaned = re.sub(r"[_\-]+", " ", name).strip()
+    if not cleaned:
+        return "Untitled"
+    return " ".join(part.capitalize() for part in cleaned.split())
+
+
+def get_product_display_name(product_path: Path) -> str:
+    try:
+        content = product_path.read_text(encoding="utf-8")
+    except Exception:
+        return humanize_slug(product_path.stem)
+
+    for line in content.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("#"):
+            heading = stripped.lstrip("#").strip()
+            if heading:
+                return heading
+    return humanize_slug(product_path.stem)
+
+
+def output_display_name(output_dir_name: str) -> str:
+    # Example: scentnode_general_01_20260510_023010 -> scentnode_general
+    no_timestamp = re.sub(r"_\d{8}_\d{6}$", "", output_dir_name)
+    no_index = re.sub(r"_\d+$", "", no_timestamp)
+    return humanize_slug(no_index)
+
+
 def list_photos() -> list[Path]:
     extensions = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".gif", ".tif", ".tiff"}
     return sorted([p for p in PHOTOS_DIR.rglob("*") if p.is_file() and p.suffix.lower() in extensions])
@@ -565,8 +594,13 @@ def resolve_or_create_folder_id(access_token: str, folder_id: str, folder_name: 
 @app.route("/")
 def home() -> str:
     ensure_dirs()
-    products = list_products()
-    scripts = list_scripts()
+    products = [
+        {
+            "file_name": product.name,
+            "display_name": get_product_display_name(product),
+        }
+        for product in list_products()
+    ]
     photos = list_photos()
     embedded_paths = read_embedding_paths()
     new_photo_count = sum(
@@ -574,10 +608,11 @@ def home() -> str:
     )
 
     output_dirs = []
-    for output in list_output_dirs():
+    for output in list_output_dirs()[:24]:
         output_dirs.append(
             {
                 "name": output.name,
+                "display_name": output_display_name(output.name),
                 "path": output,
                 "preview": find_preview_image(output),
                 "slide_count": len(list(output.glob("slide*_final.png"))),
@@ -587,7 +622,6 @@ def home() -> str:
     return render_template(
         "home.html",
         products=products,
-        scripts=scripts,
         output_dirs=output_dirs,
         photo_count=len(photos),
         embedded_count=len(embedded_paths),

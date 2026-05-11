@@ -68,6 +68,10 @@ main {
   align-items: start;
 }
 
+.panel-full {
+  grid-column: 1 / -1;
+}
+
 .panel {
   background: linear-gradient(180deg, rgba(37, 44, 74, 0.66), rgba(19, 24, 44, 0.85));
   border: 1px solid #303a66;
@@ -159,6 +163,21 @@ main {
   gap: 12px;
   padding: 12px 4px;
   border-bottom: 1px solid #2d3763;
+}
+
+.product-list .clickable-row {
+  cursor: pointer;
+}
+
+.product-list .clickable-row:hover {
+  background: rgba(44, 58, 104, 0.22);
+}
+
+.row-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .list li:last-child {
@@ -272,6 +291,23 @@ code {
   border: 1px solid #2f3c6f;
   border-radius: 12px;
   padding: 10px;
+}
+
+.output-meta-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.output-title {
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 18px;
 }
 
 .output-card img {

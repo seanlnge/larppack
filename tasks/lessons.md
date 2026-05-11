@@ -15,3 +15,4 @@
 - For LLM script generation quality issues (repetitive hooks like "7 ways..."), add explicit anti-pattern constraints + hook archetype rotation + recent-title anti-repeat context in the prompt.
 - For repeated image selection across runs, combine controlled stochasticity (top-K sampling + temperature + score jitter) with penalties for images used in recent manifests of the same input stem.
 - On Drive API `401 Invalid Credentials`, auto-refresh the access token and retry once before surfacing an error to the user.
+- For dashboard UX requests, prefer human-readable product names parsed from markdown headings (not filenames), clickable row affordances, overflow-safe titles, and bounded result lists.

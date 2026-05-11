@@ -1,6 +1,7 @@
 # TikTokGen
 
 Local toolkit for generating TikTok-style slideshow images from product markdown. Thank you codex 5.3 + cursor (too broke for 4.6/4.7 or 5.5)
+idk why cursor decided to use flask + html templates lmfao no one use ts fr, why not react app w/ vite
 
 ## What it does
 

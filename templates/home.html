@@ -43,18 +43,18 @@
     <span class="chip">{{ products|length }} Files</span>
   </div>
   {% if products %}
-    <ul class="list">
+    <ul class="list product-list">
       {% for product in products %}
-        <li>
-          <div>
-            <strong>{{ product.name }}</strong>
+        <li class="clickable-row" data-href="{{ url_for('product_edit', file_name=product.file_name) }}">
+          <div class="row-title">
+            <strong>{{ product.display_name }}</strong>
           </div>
           <div class="actions">
-            <a class="btn" href="{{ url_for('product_edit', file_name=product.name) }}">Edit</a>
-            <form method="post" action="{{ url_for('generate_from_product', file_name=product.name) }}" class="async-job" data-job-title="Generating Output">
+            <a class="btn" href="{{ url_for('product_edit', file_name=product.file_name) }}">Edit</a>
+            <form method="post" action="{{ url_for('generate_from_product', file_name=product.file_name) }}" class="async-job" data-job-title="Generating Output">
               <button class="btn primary" type="submit">Generate Output</button>
             </form>
-            <form method="post" action="{{ url_for('product_delete', file_name=product.name) }}" onsubmit="return confirm('Delete this product?')">
+            <form method="post" action="{{ url_for('product_delete', file_name=product.file_name) }}" onsubmit="return confirm('Delete this product?')">
               <button class="btn danger" type="submit">Delete</button>
             </form>
           </div>
@@ -67,24 +67,7 @@
 </section>
 
 <div class="dashboard-grid two-col">
-  <section class="panel">
-    <div class="panel-title-row">
-      <h2>Generated Scripts</h2>
-    </div>
-    {% if scripts %}
-      <ul class="list compact">
-        {% for script in scripts %}
-          <li>
-            <a href="{{ url_for('serve_file', relative_path='scripts/' ~ script.name) }}" target="_blank">{{ script.name }}</a>
-          </li>
-        {% endfor %}
-      </ul>
-    {% else %}
-      <p class="muted">No generated script JSON files yet.</p>
-    {% endif %}
-  </section>
-
-  <section class="panel">
+  <section class="panel panel-full">
     <div class="panel-title-row">
       <h2>Recent Outputs</h2>
     </div>
@@ -92,8 +75,10 @@
       <div class="output-grid">
         {% for out in output_dirs %}
           <article class="output-card">
-            <h3>{{ out.name }}</h3>
-            <p class="muted">{{ out.slide_count }} slides</p>
+            <div class="output-meta-row">
+              <h3 class="output-title">{{ out.display_name }}</h3>
+              <span class="chip" style="text-overflow: clip; overflow: hidden; white-space: nowrap;">{{ out.slide_count }} slides</span>
+            </div>
             {% if out.preview %}
               <img src="{{ url_for('serve_file', relative_path=out.preview) }}" alt="Preview">
             {% endif %}
@@ -111,4 +96,13 @@
     {% endif %}
   </section>
 </div>
+<script>
+  document.querySelectorAll(".clickable-row").forEach((row) => {
+    row.addEventListener("click", (event) => {
+      if (event.target.closest("a, button, form, input, textarea, select, label")) return;
+      const href = row.getAttribute("data-href");
+      if (href) window.location.href = href;
+    });
+  });
+</script>
 {% endblock %}
