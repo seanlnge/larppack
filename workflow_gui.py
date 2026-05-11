@@ -328,14 +328,30 @@ def refresh_google_access_token(env_vars: dict[str, str]) -> str:
     return payload.get("access_token", "")
 
 
+def is_google_auth_error(message: str) -> bool:
+    lowered = message.lower()
+    return (
+        "401" in lowered
+        or "unauthorized" in lowered
+        or "unauthenticated" in lowered
+        or "invalid credentials" in lowered
+        or "autherror" in lowered
+    )
+
+
 def upload_output_to_google_drive(output_dir: Path, on_progress=None) -> str:
     env_vars = load_env_vars()
-    access_token = env_vars.get("GOOGLE_DRIVE_ACCESS_TOKEN", "")
+    access_token = env_vars.get("GOOGLE_DRIVE_ACCESS_TOKEN", "").strip()
     folder_id = env_vars.get("GOOGLE_DRIVE_FOLDER_ID", "").strip()
     folder_name = env_vars.get("GOOGLE_DRIVE_FOLDER_NAME", "").strip()
+    slide_files = sorted(output_dir.glob("slide*_final.png"))
+    if not slide_files:
+        raise RuntimeError(f"No slide images found in output folder: {output_dir.name}")
 
     if not access_token:
         access_token = refresh_google_access_token(env_vars)
+        if access_token:
+            upsert_env_vars(ENV_PATH, {"GOOGLE_DRIVE_ACCESS_TOKEN": access_token})
 
     if not access_token:
         raise RuntimeError(
@@ -343,57 +359,71 @@ def upload_output_to_google_drive(output_dir: Path, on_progress=None) -> str:
             "GOOGLE_DRIVE_REFRESH_TOKEN + GOOGLE_DRIVE_OAUTH_CLIENT_ID + GOOGLE_DRIVE_OAUTH_CLIENT_SECRET."
         )
 
-    auth_headers = {"Authorization": f"Bearer {access_token}"}
-    resolved_folder_id = resolve_or_create_folder_id(
-        access_token=access_token,
-        folder_id=folder_id,
-        folder_name=folder_name,
-    )
-
-    if resolved_folder_id and resolved_folder_id != folder_id:
-        upsert_env_vars(ENV_PATH, {"GOOGLE_DRIVE_FOLDER_ID": resolved_folder_id})
-
-    slide_files = sorted(output_dir.glob("slide*_final.png"))
-    if not slide_files:
-        raise RuntimeError(f"No slide images found in output folder: {output_dir.name}")
-
-    destination_folder_id = create_drive_folder(
-        access_token=access_token,
-        folder_name=output_dir.name,
-        parent_folder_id=resolved_folder_id,
-    )
-    if on_progress is not None:
-        on_progress(5, f"Created destination folder: {output_dir.name}")
-
-    total_files = len(slide_files)
-
-    def _upload_one(path: Path) -> str:
-        mime_type = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
-        upload_drive_file(
-            access_token=access_token,
-            file_name=path.name,
-            file_bytes=path.read_bytes(),
-            mime_type=mime_type,
-            parent_folder_id=destination_folder_id,
+    def _upload_with_token(token: str) -> str:
+        resolved_folder_id = resolve_or_create_folder_id(
+            access_token=token,
+            folder_id=folder_id,
+            folder_name=folder_name,
         )
-        return path.name
 
-    uploaded_count = 0
-    worker_count = min(8, total_files)
-    with ThreadPoolExecutor(max_workers=worker_count) as executor:
-        futures = {executor.submit(_upload_one, slide_file): slide_file.name for slide_file in slide_files}
-        for future in as_completed(futures):
-            file_name = futures[future]
-            try:
-                _ = future.result()
-            except Exception as exc:
-                raise RuntimeError(f"Failed uploading {file_name}: {exc}") from exc
-            uploaded_count += 1
-            if on_progress is not None:
-                progress = 5 + int((uploaded_count / total_files) * 95)
-                on_progress(progress, f"Uploaded {uploaded_count}/{total_files}: {file_name}")
+        if resolved_folder_id and resolved_folder_id != folder_id:
+            upsert_env_vars(ENV_PATH, {"GOOGLE_DRIVE_FOLDER_ID": resolved_folder_id})
 
-    return f"https://drive.google.com/drive/folders/{destination_folder_id} (uploaded {uploaded_count} images)"
+        destination_folder_id = create_drive_folder(
+            access_token=token,
+            folder_name=output_dir.name,
+            parent_folder_id=resolved_folder_id,
+        )
+        if on_progress is not None:
+            on_progress(5, f"Created destination folder: {output_dir.name}")
+
+        total_files = len(slide_files)
+
+        def _upload_one(path: Path) -> str:
+            mime_type = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
+            upload_drive_file(
+                access_token=token,
+                file_name=path.name,
+                file_bytes=path.read_bytes(),
+                mime_type=mime_type,
+                parent_folder_id=destination_folder_id,
+            )
+            return path.name
+
+        uploaded_count = 0
+        worker_count = min(8, total_files)
+        with ThreadPoolExecutor(max_workers=worker_count) as executor:
+            futures = {executor.submit(_upload_one, slide_file): slide_file.name for slide_file in slide_files}
+            for future in as_completed(futures):
+                file_name = futures[future]
+                try:
+                    _ = future.result()
+                except Exception as exc:
+                    raise RuntimeError(f"Failed uploading {file_name}: {exc}") from exc
+                uploaded_count += 1
+                if on_progress is not None:
+                    progress = 5 + int((uploaded_count / total_files) * 95)
+                    on_progress(progress, f"Uploaded {uploaded_count}/{total_files}: {file_name}")
+
+        return f"https://drive.google.com/drive/folders/{destination_folder_id} (uploaded {uploaded_count} images)"
+
+    try:
+        return _upload_with_token(access_token)
+    except Exception as first_exc:
+        if not is_google_auth_error(str(first_exc)):
+            raise
+
+        refreshed = refresh_google_access_token(env_vars)
+        if not refreshed:
+            raise RuntimeError(
+                "Google authentication failed and token refresh is unavailable. "
+                "Reconnect Google Drive from Settings."
+            ) from first_exc
+
+        upsert_env_vars(ENV_PATH, {"GOOGLE_DRIVE_ACCESS_TOKEN": refreshed})
+        if on_progress is not None:
+            on_progress(2, "Access token refreshed, retrying upload...")
+        return _upload_with_token(refreshed)
 
 
 def upload_drive_file(

@@ -13,3 +13,5 @@
 - When users request “upload individual images inside a named folder,” upload slide PNGs directly and create a Drive folder named after the output directory instead of zipping.
 - Never call Flask context-bound helpers like `url_for()` inside background threads; compute URLs in the request handler and pass plain strings into the job runner.
 - For LLM script generation quality issues (repetitive hooks like "7 ways..."), add explicit anti-pattern constraints + hook archetype rotation + recent-title anti-repeat context in the prompt.
+- For repeated image selection across runs, combine controlled stochasticity (top-K sampling + temperature + score jitter) with penalties for images used in recent manifests of the same input stem.
+- On Drive API `401 Invalid Credentials`, auto-refresh the access token and retry once before surfacing an error to the user.

@@ -14,6 +14,11 @@ from sentence_transformers import SentenceTransformer
 CANVAS_WIDTH = 1080
 CANVAS_HEIGHT = 1920
 DEFAULT_NEGATIVE_WEIGHT = 0.35
+DEFAULT_SELECTION_TOP_K = 8
+DEFAULT_SELECTION_TEMPERATURE = 0.45
+DEFAULT_SCORE_NOISE_STD = 0.012
+DEFAULT_RECENT_RUN_PENALTY = 0.08
+DEFAULT_AVOID_RECENT_RUNS = 4
 CARD_WIDTH_RATIO = 0.92
 CARD_RADIUS = 24
 TOP_CARD_START_Y = 280
@@ -36,6 +41,8 @@ class SlideSelection:
     file_name: str
     image_path: str
     similarity: float
+    adjusted_score: float
+    recent_penalty_count: int
     query_text: str
     negative_prompt: str
 
@@ -83,6 +90,42 @@ def parse_args() -> argparse.Namespace:
         type=float,
         default=DEFAULT_NEGATIVE_WEIGHT,
         help="Weight used when subtracting negative prompt embedding from positive query embedding.",
+    )
+    parser.add_argument(
+        "--selection-top-k",
+        type=int,
+        default=DEFAULT_SELECTION_TOP_K,
+        help="Sample from top-K scored candidates per slide for diversity.",
+    )
+    parser.add_argument(
+        "--selection-temperature",
+        type=float,
+        default=DEFAULT_SELECTION_TEMPERATURE,
+        help="Softmax temperature for top-K sampling (<=0 makes selection deterministic).",
+    )
+    parser.add_argument(
+        "--score-noise-std",
+        type=float,
+        default=DEFAULT_SCORE_NOISE_STD,
+        help="Gaussian noise std added to scores before candidate sampling.",
+    )
+    parser.add_argument(
+        "--recent-run-penalty",
+        type=float,
+        default=DEFAULT_RECENT_RUN_PENALTY,
+        help="Score penalty applied per recent usage count for each image path.",
+    )
+    parser.add_argument(
+        "--avoid-recent-runs",
+        type=int,
+        default=DEFAULT_AVOID_RECENT_RUNS,
+        help="Number of recent runs for this input stem to use for image reuse penalties.",
+    )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=None,
+        help="Optional random seed for reproducible stochastic image selection.",
     )
     return parser.parse_args()
 
@@ -157,6 +200,62 @@ def build_query_text(global_descriptor: str, slide: dict[str, Any]) -> tuple[str
     return positive_text, negative_prompt
 
 
+def load_recent_usage_counts(output_root: Path, input_stem: str, avoid_recent_runs: int) -> dict[str, int]:
+    if avoid_recent_runs <= 0 or not output_root.exists():
+        return {}
+
+    candidate_dirs = sorted(
+        [p for p in output_root.glob(f"{input_stem}_*") if p.is_dir()],
+        key=lambda p: p.stat().st_mtime,
+        reverse=True,
+    )[:avoid_recent_runs]
+
+    counts: dict[str, int] = {}
+    for output_dir in candidate_dirs:
+        manifest_path = output_dir / "manifest.json"
+        if not manifest_path.exists():
+            continue
+        try:
+            rows = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        if not isinstance(rows, list):
+            continue
+
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            rel_path = str(row.get("selected_image_path") or row.get("selected_image") or "").strip()
+            if not rel_path:
+                continue
+            counts[rel_path] = counts.get(rel_path, 0) + 1
+    return counts
+
+
+def sample_candidate_index(
+    candidate_indices: list[int],
+    adjusted_scores: np.ndarray,
+    selection_top_k: int,
+    selection_temperature: float,
+    rng: np.random.Generator,
+) -> int:
+    if not candidate_indices:
+        raise RuntimeError("No candidate indices available for sampling.")
+
+    top_k = max(1, min(selection_top_k, len(candidate_indices)))
+    top_candidates = candidate_indices[:top_k]
+
+    if selection_temperature <= 0 or top_k == 1:
+        return top_candidates[0]
+
+    logits = adjusted_scores[top_candidates] / selection_temperature
+    logits = logits - np.max(logits)
+    exp_vals = np.exp(logits)
+    probs = exp_vals / np.sum(exp_vals)
+    chosen = int(rng.choice(np.asarray(top_candidates), p=probs))
+    return chosen
+
+
 def select_images_for_slides(
     model: SentenceTransformer,
     payload: dict[str, Any],
@@ -165,6 +264,12 @@ def select_images_for_slides(
     image_vectors: np.ndarray,
     images_dir: Path,
     negative_weight: float,
+    recent_usage_counts: dict[str, int],
+    recent_run_penalty: float,
+    selection_top_k: int,
+    selection_temperature: float,
+    score_noise_std: float,
+    rng: np.random.Generator,
 ) -> list[SlideSelection]:
     used_indices: set[int] = set()
     selections: list[SlideSelection] = []
@@ -180,21 +285,38 @@ def select_images_for_slides(
             query_vec = positive_vec
 
         scores = image_vectors @ query_vec
-        ranked_indices = np.argsort(scores)[::-1]
+        adjusted_scores = scores.copy()
 
-        chosen_idx = None
+        for idx, rel_path in enumerate(image_rel_paths):
+            usage_count = recent_usage_counts.get(rel_path, 0)
+            if usage_count > 0:
+                adjusted_scores[idx] -= recent_run_penalty * usage_count
+
+        if score_noise_std > 0:
+            adjusted_scores = adjusted_scores + rng.normal(0, score_noise_std, size=adjusted_scores.shape[0])
+
+        ranked_indices = np.argsort(adjusted_scores)[::-1]
+
+        candidate_indices: list[int] = []
         for idx in ranked_indices:
             if int(idx) in used_indices:
                 continue
             candidate = images_dir / image_rel_paths[int(idx)]
             if candidate.exists():
-                chosen_idx = int(idx)
-                break
+                candidate_indices.append(int(idx))
 
-        if chosen_idx is None:
+        if not candidate_indices:
             raise RuntimeError(f"Could not find an unused readable image for slide #{slide_index}.")
 
+        chosen_idx = sample_candidate_index(
+            candidate_indices=candidate_indices,
+            adjusted_scores=adjusted_scores,
+            selection_top_k=selection_top_k,
+            selection_temperature=selection_temperature,
+            rng=rng,
+        )
         used_indices.add(chosen_idx)
+        penalty_count = recent_usage_counts.get(image_rel_paths[chosen_idx], 0)
         selections.append(
             SlideSelection(
                 slide_index=slide_index,
@@ -202,6 +324,8 @@ def select_images_for_slides(
                 file_name=image_file_names[chosen_idx],
                 image_path=image_rel_paths[chosen_idx],
                 similarity=float(scores[chosen_idx]),
+                adjusted_score=float(adjusted_scores[chosen_idx]),
+                recent_penalty_count=penalty_count,
                 query_text=positive_text,
                 negative_prompt=negative_prompt,
             )
@@ -527,6 +651,8 @@ def save_manifest(output_dir: Path, selections: list[SlideSelection]) -> None:
                 "selected_image": selection.file_name,
                 "selected_image_path": selection.image_path,
                 "similarity": round(selection.similarity, 6),
+                "adjusted_score": round(selection.adjusted_score, 6),
+                "recent_penalty_count": selection.recent_penalty_count,
                 "query_text": selection.query_text,
                 "negative_prompt": selection.negative_prompt,
                 "output_file": f"slide{selection.slide_index:02d}_final.png",
@@ -546,6 +672,12 @@ def main() -> None:
         raise FileNotFoundError(f"Embeddings file does not exist: {args.embeddings_json}")
 
     image_file_names, image_rel_paths, image_vectors = load_embedding_rows(args.embeddings_json)
+    recent_usage_counts = load_recent_usage_counts(
+        output_root=args.output_root,
+        input_stem=args.input_json.stem,
+        avoid_recent_runs=args.avoid_recent_runs,
+    )
+    rng = np.random.default_rng(args.seed)
     model = SentenceTransformer(args.model_path)
     selections = select_images_for_slides(
         model=model,
@@ -555,6 +687,12 @@ def main() -> None:
         image_vectors=image_vectors,
         images_dir=args.images_dir,
         negative_weight=args.negative_weight,
+        recent_usage_counts=recent_usage_counts,
+        recent_run_penalty=args.recent_run_penalty,
+        selection_top_k=args.selection_top_k,
+        selection_temperature=args.selection_temperature,
+        score_noise_std=args.score_noise_std,
+        rng=rng,
     )
 
     output_dir = create_output_folder(args.output_root, args.input_json)
