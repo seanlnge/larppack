@@ -122,6 +122,11 @@ def write_text(path: Path, content: str) -> None:
     path.write_text(content, encoding="utf-8")
 
 
+def normalize_newlines(text: str) -> str:
+    # Prevent double-spacing caused by mixed CRLF/CR line endings across edit cycles.
+    return text.replace("\r\n", "\n").replace("\r", "\n")
+
+
 def parse_env_text(content: str) -> dict[str, str]:
     result: dict[str, str] = {}
     for line in content.splitlines():
@@ -676,6 +681,7 @@ def photos_embed_new() -> str:
         def _runner() -> dict[str, Any]:
             update_job(job_id, progress=3)
             done = 0
+            append_job_log(job_id, "Starting embedding task...")
 
             def _on_line(line: str) -> None:
                 nonlocal done
@@ -687,7 +693,8 @@ def photos_embed_new() -> str:
                         update_job(job_id, progress=min(progress, 95))
 
             logs = run_embed_new_photos(on_line=_on_line)
-            append_job_log(job_id, logs)
+            if not logs.strip():
+                append_job_log(job_id, "Embedding completed with no console output.")
             update_job(job_id, progress=100)
             return {"redirect_url": home_redirect_url}
 
@@ -707,7 +714,7 @@ def photos_embed_new() -> str:
 def product_new() -> str:
     if request.method == "POST":
         name = request.form.get("name", "").strip()
-        content = request.form.get("content", "")
+        content = normalize_newlines(request.form.get("content", ""))
         if not name:
             flash("Product name is required.", "error")
             return redirect(url_for("product_new"))
@@ -724,7 +731,7 @@ def product_new() -> str:
 def product_edit(file_name: str) -> str:
     path = PRODUCTS_DIR / file_name
     if request.method == "POST":
-        content = request.form.get("content", "")
+        content = normalize_newlines(request.form.get("content", ""))
         write_text(path, content)
         flash(f"Saved {file_name}", "success")
         return redirect(url_for("product_edit", file_name=file_name))
@@ -762,6 +769,7 @@ def generate_from_product(file_name: str) -> str:
             current_progress = 5
             update_job(job_id, progress=current_progress)
             rendered_count = 0
+            append_job_log(job_id, "Starting full generation workflow...")
 
             def _on_line(line: str) -> None:
                 nonlocal rendered_count, current_progress
@@ -770,19 +778,32 @@ def generate_from_product(file_name: str) -> str:
                 if "step 1/2" in low:
                     current_progress = max(current_progress, 10)
                     update_job(job_id, progress=current_progress)
+                elif "generating slideshow script json" in low:
+                    current_progress = max(current_progress, 18)
+                    update_job(job_id, progress=current_progress)
                 elif "wrote generated slideshow script to:" in low:
                     current_progress = max(current_progress, 40)
                     update_job(job_id, progress=current_progress)
+                elif "generated script:" in low:
+                    current_progress = max(current_progress, 46)
+                    update_job(job_id, progress=current_progress)
                 elif "step 2/2" in low:
                     current_progress = max(current_progress, 50)
+                    update_job(job_id, progress=current_progress)
+                elif "loading weights" in low:
+                    current_progress = max(current_progress, 58)
                     update_job(job_id, progress=current_progress)
                 elif "rendered slide" in low:
                     rendered_count += 1
                     current_progress = min(95, 50 + rendered_count * 6)
                     update_job(job_id, progress=current_progress)
+                elif "done. generated" in low:
+                    current_progress = max(current_progress, 97)
+                    update_job(job_id, progress=current_progress)
 
             logs, script_path, output_path = run_workflow(product_path, on_line=_on_line)
-            append_job_log(job_id, logs)
+            if not logs.strip():
+                append_job_log(job_id, "Workflow completed with no console output.")
 
             result: dict[str, Any] = {"redirect_url": home_redirect_url}
             if output_path is not None and output_path.exists():

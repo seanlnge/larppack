@@ -16,3 +16,5 @@
 - For repeated image selection across runs, combine controlled stochasticity (top-K sampling + temperature + score jitter) with penalties for images used in recent manifests of the same input stem.
 - On Drive API `401 Invalid Credentials`, auto-refresh the access token and retry once before surfacing an error to the user.
 - For dashboard UX requests, prefer human-readable product names parsed from markdown headings (not filenames), clickable row affordances, overflow-safe titles, and bounded result lists.
+- Normalize markdown line endings (`\r\n`/`\r` -> `\n`) on product save to avoid accidental blank-line insertion from browser form submissions.
+- For live job progress UX, avoid buffered subprocess wrappers; stream child stdout line-by-line (use Python `-u`) and map key log markers to granular progress percentages.

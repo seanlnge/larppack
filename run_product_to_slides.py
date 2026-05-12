@@ -96,18 +96,27 @@ def parse_args() -> argparse.Namespace:
 
 
 def run_command(command: list[str], cwd: Path) -> str:
-    completed = subprocess.run(
+    process = subprocess.Popen(
         command,
         cwd=str(cwd),
-        capture_output=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
         text=True,
-        check=True,
+        bufsize=1,
     )
-    if completed.stdout:
-        print(completed.stdout.rstrip())
-    if completed.stderr:
-        print(completed.stderr.rstrip())
-    return completed.stdout + "\n" + completed.stderr
+
+    lines: list[str] = []
+    assert process.stdout is not None
+    for raw_line in process.stdout:
+        line = raw_line.rstrip("\n")
+        lines.append(line)
+        print(line, flush=True)
+
+    return_code = process.wait()
+    combined = "\n".join(lines)
+    if return_code != 0:
+        raise RuntimeError(combined.strip())
+    return combined
 
 
 def extract_script_path(output: str) -> Path:
@@ -127,6 +136,7 @@ def main() -> None:
     print("Step 1/2: Generating slideshow script JSON from product markdown...")
     gen_cmd = [
         sys.executable,
+        "-u",
         "generate_tiktok_script.py",
         "--product-md",
         str(args.product_md),
@@ -159,6 +169,7 @@ def main() -> None:
     print("Step 2/2: Rendering final slide images from generated script...")
     render_cmd = [
         sys.executable,
+        "-u",
         "generate_slides.py",
         "--input-json",
         str(generated_script_path),
